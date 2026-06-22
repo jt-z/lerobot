@@ -74,7 +74,9 @@ def get_cv2_backend() -> int:
     import cv2
 
     if platform.system() == "Windows":
-        return int(cv2.CAP_MSMF)  # Use MSMF for Windows instead of AVFOUNDATION
+        # Use DSHOW (DirectShow) for Windows as it has better compatibility with most webcams
+        # MSMF (Media Foundation) may not work with some older cameras or virtual cameras
+        return int(cv2.CAP_DSHOW)
     # elif platform.system() == "Darwin":  # macOS
     #     return cv2.CAP_AVFOUNDATION
     else:  # Linux and others

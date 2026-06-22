@@ -305,8 +305,11 @@ class OpenCVCamera(Camera):
         else:
             targets_to_scan = [int(i) for i in range(MAX_OPENCV_INDEX)]
 
+        # Use the same backend as connect() to ensure consistency between detection and connection
+        backend = get_cv2_backend()
+
         for target in targets_to_scan:
-            camera = cv2.VideoCapture(target)
+            camera = cv2.VideoCapture(target, backend)
             if camera.isOpened():
                 default_width = int(camera.get(cv2.CAP_PROP_FRAME_WIDTH))
                 default_height = int(camera.get(cv2.CAP_PROP_FRAME_HEIGHT))
