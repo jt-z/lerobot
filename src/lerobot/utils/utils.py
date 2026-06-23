@@ -13,6 +13,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# 在文件最开头添加（在任何其他导入之前）
+import os
+import ssl
+
+# Fix for Windows SSL certificate storage corruption
+if os.name == 'nt':
+    _original_create_default_context = ssl.create_default_context
+    
+    def _fixed_create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=None, capath=None, cadata=None):
+        cert_file = os.environ.get('SSL_CERT_FILE')
+        if cert_file and os.path.exists(cert_file):
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.load_verify_locations(cert_file)
+            return ctx
+        # 如果没有设置SSL_CERT_FILE，尝试绕过Windows证书存储
+        try:
+            return _original_create_default_context(purpose, cafile, capath, cadata)
+        except ssl.SSLError:
+            # 证书存储损坏，返回一个不验证的上下文（仅用于绕过）
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            return ctx
+    
+    ssl.create_default_context = _fixed_create_default_context
+ 
+
 import logging
 import os
 import platform

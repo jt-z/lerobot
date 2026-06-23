@@ -13,6 +13,28 @@
 # limitations under the License.
 
 """
+Fix for Windows SSL certificate issues - must be placed at the very beginning
+"""
+import os
+import ssl
+
+# Fix for Windows SSL certificate storage corruption issues
+# When SSL_CERT_FILE is set, use it and skip Windows certificate store
+if os.name == 'nt' and 'SSL_CERT_FILE' in os.environ:
+    _original_create_default_context = ssl.create_default_context
+    
+    def _fixed_create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=None, capath=None, cadata=None):
+        # Use SSL_CERT_FILE if provided, otherwise fall back to original behavior
+        cert_file = os.environ.get('SSL_CERT_FILE')
+        if cert_file and os.path.exists(cert_file):
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.load_verify_locations(cert_file)
+            return ctx
+        return _original_create_default_context(purpose, cafile, capath, cadata)
+    
+    ssl.create_default_context = _fixed_create_default_context
+
+"""
 Simple script to control a robot from teleoperation.
 
 Example:
