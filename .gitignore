@@ -28,6 +28,8 @@ poetry.lock
 uv.lock
 Pipfile.lock
 
+self_scripts/output_lerobot_train
+
 ### Build & Distribution ###
 build/
 dist/
