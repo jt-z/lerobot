@@ -1,0 +1,19 @@
+{
+  "dataset": {
+    "repo_id": "hellozjt/lerobot_so101_put_ball2cup",
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/lerobot_so101_put_ball2cup",
+    "revision": "main",
+    "streaming": false
+  },
+  "policy": {
+    "type": "act",
+    "device": "cuda",
+    "push_to_hub": false,
+    "optimizer_lr": 8e-5
+  },
+  "output_dir": "output_lerobot_train/put_ball2cup",
+  "job_name": "put_job",
+  "steps": 37500,
+  "batch_size": 32,
+  "save_freq": 2000
+}
