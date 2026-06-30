@@ -549,18 +549,33 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
         log_say("Stop recording", cfg.play_sounds, blocking=True)
 
         if dataset:
-            dataset.finalize()
+            try:
+                dataset.finalize()
+            except Exception as e:
+                logging.error(f"Failed to finalize dataset: {e}")
 
         if robot.is_connected:
-            robot.disconnect()
+            try:
+                robot.disconnect()
+            except Exception as e:
+                logging.error(f"Failed to disconnect robot: {e}")
         if teleop and teleop.is_connected:
-            teleop.disconnect()
+            try:
+                teleop.disconnect()
+            except Exception as e:
+                logging.error(f"Failed to disconnect teleop: {e}")
 
         if not is_headless() and listener:
-            listener.stop()
+            try:
+                listener.stop()
+            except Exception as e:
+                logging.error(f"Failed to stop listener: {e}")
 
-        if cfg.dataset.push_to_hub:
-            dataset.push_to_hub(tags=cfg.dataset.tags, private=cfg.dataset.private)
+        if cfg.dataset.push_to_hub and dataset:
+            try:
+                dataset.push_to_hub(tags=cfg.dataset.tags, private=cfg.dataset.private)
+            except Exception as e:
+                logging.error(f"Failed to push dataset to hub: {e}")
 
         log_say("Exiting", cfg.play_sounds)
     return dataset
