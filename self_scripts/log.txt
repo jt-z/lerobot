@@ -1,0 +1,49 @@
+Svt[info]: [asm level selected : up to avx2]
+Svt[info]: -------------------------------------------
+Svt[info]: SVT [config]: main profile	tier (auto)	level (auto)
+Svt[info]: SVT [config]: width / height / fps numerator / fps denominator 		: 640 / 480 / 30 / 1
+Svt[info]: SVT [config]: bit-depth / color format 					: 8 / YUV420
+Svt[info]: SVT [config]: preset / tune / pred struct 					: 10 / PSNR / random access
+Svt[info]: SVT [config]: gop size / mini-gop size / key-frame type 			: 2 / 16 / key frame
+Svt[info]: SVT [config]: BRC mode / rate factor 					: CRF / 30 
+Svt[info]: SVT [config]: AQ mode / variance boost 					: 2 / 0
+Svt[info]: SVT [config]: sharpness / luminance-based QP bias 			: 0 / 0
+Svt[info]: Svt[info]: -------------------------------------------
+Left arrow key pressed. Exiting loop and rerecord the last episode...
+^[[D[mp4 @ 0x5edf4c989480] Starting second pass: moving the moov atom to the beginning of the file
+[mp4 @ 0x5edf4c821580] Starting second pass: moving the moov atom to the beginning of the file
+INFO 2026-06-29 18:21:50 ls/utils.py:227 Stop recording
+Traceback (most recent call last):
+  File "/home/jt/dev/miniforge3/envs/lerobot/bin/lerobot-record", line 6, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/jt/dev/lerobot/src/lerobot/scripts/lerobot_record.py", line 571, in main
+    record()
+  File "/home/jt/dev/lerobot/src/lerobot/configs/parser.py", line 233, in wrapper_inner
+    response = fn(cfg, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jt/dev/lerobot/src/lerobot/scripts/lerobot_record.py", line 555, in record
+    robot.disconnect()
+  File "/home/jt/dev/lerobot/src/lerobot/utils/decorators.py", line 29, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jt/dev/lerobot/src/lerobot/robots/so_follower/so_follower.py", line 226, in disconnect
+    self.bus.disconnect(self.config.disable_torque_on_disconnect)
+  File "/home/jt/dev/lerobot/src/lerobot/utils/decorators.py", line 29, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jt/dev/lerobot/src/lerobot/motors/motors_bus.py", line 537, in disconnect
+    self.disable_torque(num_retry=5)
+  File "/home/jt/dev/lerobot/src/lerobot/motors/feetech/feetech.py", line 297, in disable_torque
+    self.write("Torque_Enable", motor, TorqueMode.DISABLED.value, num_retry=num_retry)
+  File "/home/jt/dev/lerobot/src/lerobot/utils/decorators.py", line 29, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jt/dev/lerobot/src/lerobot/motors/motors_bus.py", line 1082, in write
+    self._write(addr, length, id_, value, num_retry=num_retry, raise_on_error=True, err_msg=err_msg)
+  File "/home/jt/dev/lerobot/src/lerobot/motors/motors_bus.py", line 1108, in _write
+    raise RuntimeError(f"{err_msg} {self.packet_handler.getRxPacketError(error)}")
+RuntimeError: Failed to write 'Torque_Enable' on id_=6 with '0' after 6 tries. [RxPacketError] Overload error!
+FATAL: exception not rethrown
+collect_data_put2cup.sh: line 15: 1011980 Aborted                 (core dumped) lerobot-record --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=jt_follower_arm --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30, fourcc: "MJPG"}, side: {type: opencv, index_or_path: 2, width: 640, height: 480, fps: 30, fourcc: "MJPG"}}" --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=jt_leader_arm --display_data=true --dataset.repo_id=hellozjt/lerobot_so101_put_ball2cup --dataset.num_episodes=40 --dataset.single_task="Put ball to the cup" --dataset.push_to_hub=true --dataset.episode_time_s=30 --dataset.reset_time_s=5
+
