@@ -35,16 +35,22 @@ LEFT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82106862-if00"
 RIGHT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034865-if00"
 
 # ==================== 摄像头配置 ====================
+# 摄像头映射（2026-08-26 实测，与 teleoperate_dual_so101.sh 一致）：
+#   左臂手部 = icSpring 无序列号
+#   左臂顶部 = icSpring 202404160005
+#   右臂手部 = JYU2C-2083 2607060
+#   前视     = JYU2C-2083 2607031
+# 注意：/dev/videoN 编号随插拔顺序变化，故使用 /dev/v4l/by-id 稳定路径。
 # 左臂：3个摄像头（手部、顶部、前视）
 LEFT_CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  top: {type: opencv, index_or_path: /dev/video2, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  front: {type: opencv, index_or_path: /dev/video6, width: 640, height: 480, fps: 30, fourcc: MJPG}
+  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
+  top: {type: opencv, index_or_path: /dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
+  front: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }'
 
 # 右臂：1个摄像头（手部）
 RIGHT_CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/video4, width: 640, height: 480, fps: 20, fourcc: MJPG}
+  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 20, fourcc: MJPG}
 }'
 
 # ==================== 数据集配置 ====================
@@ -72,7 +78,11 @@ done
 # 检查摄像头
 echo ""
 echo "2. 检查摄像头..."
-for video in /dev/video0 /dev/video2 /dev/video4 /dev/video6; do
+for video in \
+  /dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0 \
+  /dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0 \
+  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0 \
+  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0; do
   if [ ! -e "$video" ]; then
     echo "❌ 警告：摄像头不存在 $video"
   else
