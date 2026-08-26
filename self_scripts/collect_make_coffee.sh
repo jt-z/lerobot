@@ -52,7 +52,7 @@ LEFT_CAMERAS='{
 
 # 右臂：1个摄像头（手部）
 RIGHT_CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 20, fourcc: MJPG}
+  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }'
 
 # ==================== 数据集配置 ====================
@@ -158,7 +158,7 @@ RECORD_CMD="lerobot-record \
   --dataset.episode_time_s=$EPISODE_TIME \
   --dataset.reset_time_s=$RESET_TIME \
   --dataset.video=true \
-  --dataset.vcodec=h264 \
+  --dataset.rgb_encoder.vcodec=h264 \
   --dataset.push_to_hub=true \
   --display_data=true \
   --display_compressed_images=false"
