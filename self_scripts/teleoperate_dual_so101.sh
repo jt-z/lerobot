@@ -46,15 +46,15 @@ DISPLAY_DATA=true
 # 摄像头配置
 # ========================================
 # 摄像头映射（2026-08-26 实测，与 run_inference_two_hand_cap_pen_PI05.sh 一致）：
-#   左臂手部 = icSpring 202404160005
-#   左臂顶部 = icSpring 无序列号
+#   左臂手部 = icSpring 无序列号
+#   左臂顶部 = icSpring 202404160005
 #   右臂手部 = JYU2C-2083 2607060
 #   前视     = JYU2C-2083 2607031（新增）
 # 注意：/dev/videoN 编号随插拔顺序变化，故使用 /dev/v4l/by-id 稳定路径。
 
 # 左臂摄像头（hand camera + main camera）
-LEFT_HAND_CAMERA="/dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0"  # 左臂手部
-LEFT_MAIN_CAMERA="/dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0"               # 左臂顶部
+LEFT_HAND_CAMERA="/dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0"               # 左臂手部
+LEFT_MAIN_CAMERA="/dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0"  # 左臂顶部
 # 右臂摄像头（hand camera）
 RIGHT_HAND_CAMERA="/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0"  # 右臂手部
 # 前视摄像头（front camera）
