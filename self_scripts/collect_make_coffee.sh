@@ -23,10 +23,16 @@ echo "=========================================="
 echo ""
 
 # ==================== 硬件配置 ====================
-LEFT_FOLLOWER_PORT="/dev/ttyLeftFollower"
-RIGHT_FOLLOWER_PORT="/dev/ttyRightFollower"
-LEFT_LEADER_PORT="/dev/ttyLeftLeader"
-RIGHT_LEADER_PORT="/dev/ttyRightLeader"
+# 端口映射（2026-08-26 实测，与 teleoperate_dual_so101.sh 一致）：
+#   左从臂 = USB 序列号 5C82108837
+#   右从臂 = USB 序列号 5B61034841
+#   左主臂 = USB 序列号 5C82106862（已对调修正）
+#   右主臂 = USB 序列号 5B61034865（已对调修正）
+# 注意：全部使用 /dev/serial/by-id 稳定路径，ttyACM 编号随插拔顺序变化不可靠。
+LEFT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82108837-if00"
+RIGHT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034841-if00"
+LEFT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82106862-if00"
+RIGHT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034865-if00"
 
 # ==================== 摄像头配置 ====================
 # 左臂：3个摄像头（手部、顶部、前视）
