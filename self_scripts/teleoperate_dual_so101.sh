@@ -11,14 +11,23 @@ set -e  # 遇到错误立即退出
 # ========================================
 # 配置区域 - 根据你的实际串口修改
 # ========================================
+# 端口映射（2026-08-26 实测，与 run_inference_two_hand_cap_pen_PI05.sh 一致）：
+#   左从臂 = USB 序列号 5C82108837（当前枚举为 ttyACM2）
+#   右从臂 = USB 序列号 5B61034841（当前枚举为 ttyACM3）
+#   左主臂 = USB 序列号 5B61034865（当前枚举为 ttyACM1）
+#   右主臂 = USB 序列号 5C82106862（当前枚举为 ttyACM0）
+# 注意：ttyACM 编号随插拔顺序变化，故全部使用 /dev/serial/by-id 稳定路径，
+#       只要适配器与机械臂的物理接线不变就不会变。
+# 左/右判定依据：各臂 EEPROM 中的 homing_offset 与左右校准文件匹配
+#   （5C82108837 与 5B61034865 为左构型，5B61034841 与 5C82106862 为右构型）。
 
 # Follower 臂串口
-LEFT_FOLLOWER_PORT="/dev/ttyLeftFollower"
-RIGHT_FOLLOWER_PORT="/dev/ttyRightFollower"
+LEFT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82108837-if00"
+RIGHT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034841-if00"
 
 # Leader 臂串口
-LEFT_LEADER_PORT="/dev/ttyLeftLeader"
-RIGHT_LEADER_PORT="/dev/ttyRightLeader"
+LEFT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034865-if00"
+RIGHT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82106862-if00"
 
 # 校准文件 ID（必须与校准时使用的 ID 一致）
 FOLLOWER_ID="jt_follower_arm"
@@ -33,14 +42,20 @@ DISPLAY_DATA=true
 # ========================================
 # 摄像头配置
 # ========================================
+# 摄像头映射（2026-08-26 实测，与 run_inference_two_hand_cap_pen_PI05.sh 一致）：
+#   左臂手部 = icSpring 202404160005
+#   左臂顶部 = icSpring 无序列号
+#   右臂手部 = JYU2C-2083 2607060
+#   前视     = JYU2C-2083 2607031（新增）
+# 注意：/dev/videoN 编号随插拔顺序变化，故使用 /dev/v4l/by-id 稳定路径。
 
 # 左臂摄像头（hand camera + main camera）
-LEFT_HAND_CAMERA="/dev/video0"          # icspring
-LEFT_MAIN_CAMERA="/dev/video2"          # icspring - 主摄像头
+LEFT_HAND_CAMERA="/dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0"  # 左臂手部
+LEFT_MAIN_CAMERA="/dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0"               # 左臂顶部
 # 右臂摄像头（hand camera）
-RIGHT_HAND_CAMERA="/dev/video4"         # JYU2C-2083
+RIGHT_HAND_CAMERA="/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0"  # 右臂手部
 # 前视摄像头（front camera）
-FRONT_CAMERA="/dev/video6"              # front view
+FRONT_CAMERA="/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0"        # 前视（新增）
 
 # 摄像头分辨率和帧率
 CAMERA_WIDTH=640
@@ -240,7 +255,7 @@ main() {
     echo -e "${GREEN}按 Ctrl+C 停止遥操作${NC}\n"
 
     # 执行遥操作（带摄像头配置）
-    # 注意：右臂摄像头 (JYU2C-2083) 需要明确指定 MJPG 格式
+    # 注意：所有摄像头均明确指定 MJPG 格式（与推理脚本一致）
     # front 摄像头挂载到 left_arm，在观测中会显示为 left_front
     lerobot-teleoperate \
         --robot.type=bi_so_follower \
@@ -248,7 +263,7 @@ main() {
         --robot.right_arm_config.port="$RIGHT_FOLLOWER_PORT" \
         --robot.id="$FOLLOWER_ID" \
         --robot.left_arm_config.cameras="{
-            hand: {type: opencv, index_or_path: $LEFT_HAND_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS},
+            hand: {type: opencv, index_or_path: $LEFT_HAND_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG},
             top: {type: opencv, index_or_path: $LEFT_MAIN_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG},
             front: {type: opencv, index_or_path: $FRONT_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG}
         }" \
