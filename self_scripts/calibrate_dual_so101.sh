@@ -16,8 +16,8 @@ set -e  # 遇到错误立即退出
 # 端口映射（2026-08-26 实测，与 teleoperate_dual_so101.sh 一致）：
 #   左从臂 = USB 序列号 5C82108837（当前枚举为 ttyACM2）
 #   右从臂 = USB 序列号 5B61034841（当前枚举为 ttyACM3）
-#   左主臂 = USB 序列号 5B61034865（当前枚举为 ttyACM1）
-#   右主臂 = USB 序列号 5C82106862（当前枚举为 ttyACM0）
+#   左主臂 = USB 序列号 5C82106862（当前枚举为 ttyACM0）
+#   右主臂 = USB 序列号 5B61034865（当前枚举为 ttyACM1）
 # 注意：ttyACM 编号随插拔顺序变化，故全部使用 /dev/serial/by-id 稳定路径，
 #       只要适配器与机械臂的物理接线不变就不会变。
 
@@ -26,8 +26,8 @@ LEFT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82108837-if00
 RIGHT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034841-if00"
 
 # Leader 臂串口
-LEFT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034865-if00"
-RIGHT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82106862-if00"
+LEFT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82106862-if00"
+RIGHT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034865-if00"
 
 # 校准文件 ID（必须与遥操作时使用的 ID 一致；校准时自动生成 _left/_right 两个文件）
 FOLLOWER_ID="jt_follower_arm"
