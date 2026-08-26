@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import os
 import time
 from functools import cached_property
 
@@ -218,16 +219,76 @@ class SOFollower(Robot):
 
         goal_pos = {key.removesuffix(".pos"): val for key, val in action.items() if key.endswith(".pos")}
 
+        diag_dir = os.environ.get("LEROBOT_ACTION_DIAG")
+
         # Cap goal position when too far away from present position.
         # /!\ Slower fps expected due to reading from the follower.
-        if self.config.max_relative_target is not None:
+        if self.config.max_relative_target is not None or diag_dir:
             present_pos = self.bus.sync_read("Present_Position", num_retry=self.config.num_read_retries)
+        else:
+            present_pos = None
+
+        if self.config.max_relative_target is not None:
             goal_present_pos = {key: (g_pos, present_pos[key]) for key, g_pos in goal_pos.items()}
-            goal_pos = ensure_safe_goal_position(goal_present_pos, self.config.max_relative_target)
+            sent_goal = ensure_safe_goal_position(goal_present_pos, self.config.max_relative_target)
+        else:
+            sent_goal = goal_pos
 
         # Send goal position to the arm
-        self.bus.sync_write("Goal_Position", goal_pos)
-        return {f"{motor}.pos": val for motor, val in goal_pos.items()}
+        self.bus.sync_write("Goal_Position", sent_goal)
+
+        if diag_dir:
+            self._log_action_diag(diag_dir, goal_pos, present_pos, sent_goal)
+
+        return {f"{motor}.pos": val for motor, val in sent_goal.items()}
+
+    def _log_action_diag(
+        self,
+        diag_dir: str,
+        goal_pos: dict[str, float],
+        present_pos: dict[str, float] | None,
+        sent_goal: dict[str, float],
+    ) -> None:
+        """Record model-intended action vs what was actually commanded vs motor state (diagnostics).
+
+        Enabled via the ``LEROBOT_ACTION_DIAG`` environment variable; writes one CSV per arm.
+        """
+        import csv
+
+        os.makedirs(diag_dir, exist_ok=True)
+        path = os.path.join(diag_dir, f"action_diag_{self.id}.csv")
+        header = [
+            "timestamp",
+            "joint",
+            "goal_pos",
+            "present_pos",
+            "sent_pos",
+            "goal_present_diff",
+            "sent_present_diff",
+            "clamped",
+        ]
+        new_file = not os.path.isfile(path)
+        with open(path, "a", newline="") as f:
+            writer = csv.writer(f)
+            if new_file:
+                writer.writerow(header)
+            ts = time.time()
+            for joint, g in goal_pos.items():
+                p = present_pos[joint] if present_pos else float("nan")
+                s = sent_goal[joint]
+                clamped = int(abs(s - g) > 1e-4)
+                writer.writerow(
+                    [
+                        f"{ts:.3f}",
+                        joint,
+                        f"{g:.3f}",
+                        f"{p:.3f}",
+                        f"{s:.3f}",
+                        f"{g - p:.3f}" if present_pos else "",
+                        f"{s - p:.3f}" if present_pos else "",
+                        clamped,
+                    ]
+                )
 
     @check_if_not_connected
     def disconnect(self):
