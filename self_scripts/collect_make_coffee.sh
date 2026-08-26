@@ -1,6 +1,8 @@
 #!/bin/bash
-# 数据采集脚本：笔帽盖回笔并放入笔筒
-# 任务：Put the cap back on the pen on the table and place it in the pen holder
+# 数据采集脚本：双臂夹取纸杯放到咖啡机银色托盘，右臂按按钮，再把杯子放回桌面
+# 任务：Pick up the paper cup with both arms, place it on the silver tray of the coffee machine,
+#       press the button with the right arm (red light on), wait about 4 seconds, release the button
+#       (red light off), then place the cup on the table with the left arm
 # 创建日期：2026-08-03
 #
 # 支持中断继续录制：
@@ -18,7 +20,7 @@ if [ "$1" == "--resume" ]; then
 fi
 
 echo "=========================================="
-echo "双臂数据采集 - 笔帽盖回笔并放入笔筒"
+echo "双臂数据采集 - 纸杯放到咖啡机银色托盘并按按钮"
 echo "=========================================="
 echo ""
 
@@ -54,8 +56,8 @@ RIGHT_CAMERAS='{
 }'
 
 # ==================== 数据集配置 ====================
-DATASET_NAME="hellozjt/cap_pen_and_put_into_holder"
-TASK_DESCRIPTION="Put the cap back on the pen on the table and place it in the pen holder"
+DATASET_NAME="hellozjt/coffee_cup_button"
+TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
 NUM_EPISODES=40
 EPISODE_TIME=45  # 每个 episode 录制时长（秒）- 75秒 × 20fps = 1500帧
 RESET_TIME=20    # 重置环境时长（秒）
