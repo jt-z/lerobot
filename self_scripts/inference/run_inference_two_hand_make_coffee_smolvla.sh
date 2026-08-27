@@ -54,8 +54,10 @@ RIGHT_CAMERAS='{
 MODEL_PATH="/home/kf/lerobot_weights/smol_vla_new_dataset/10k_pretrained_model"
 
 # SmolVLA 推理所需的基础 VLM（config + processor，用于构建语言 tokenizer 与随机初始化 VLM 后被
-# model.safetensors 覆盖）。本机已缓存在 ~/.cache/huggingface/hub/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct，
-# 若缓存被清理需联网重新下载。
+# model.safetensors 覆盖）。
+# ⚠️ 注意：默认缓存 ~/.cache/huggingface/hub 下同名目录不完整（缺 processor/tokenizer 等文件），
+#   本机完整缓存在 /home/kf/lerobot_weights/smol_vla/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct，
+#   脚本通过 HF_HUB_CACHE 指向该目录并强制离线（见下方环境变量），完全不会访问 Hugging Face。
 VLM_MODEL_NAME="HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
 
 # ==================== 数据集配置 ====================
@@ -63,10 +65,11 @@ VLM_MODEL_NAME="HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
 EVAL_DATASET_NAME="hellozjt/rollout_coffee_cup_button_smolvla"
 # SmolVLA 是语言条件模型：此任务描述就是推理时的文本提示，必须与训练任务完全一致
 TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
-EPISODE_TIME=50  # 推理时长（秒）
+EPISODE_TIME=100  # 推理时长（秒）
 FPS=20
-# 是否推送到 Hugging Face Hub（外网不可达时改为 false，数据仅保存在本地）
-PUSH_TO_HUB=true
+# 是否推送到 Hugging Face Hub（当前环境外网不可达，保持 false 数据仅保存在本地；
+# 联网后可改回 true）
+PUSH_TO_HUB=false
 
 # ==================== 摄像头 Rename 映射 ====================
 # SmolVLA 模型输入 key 为 observation.images.left_hand / left_top / left_front / right_hand，
@@ -117,11 +120,21 @@ fi
 # 检查基础 VLM 缓存（SmolVLA 需要其 config/processor 构建 tokenizer）
 echo ""
 echo "4. 检查 SmolVLA 基础 VLM 缓存..."
-VLM_CACHE_DIR="$HOME/.cache/huggingface/hub/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct"
-if [ -d "$VLM_CACHE_DIR" ]; then
-  echo "✅ 基础 VLM 已缓存：$VLM_CACHE_DIR"
+# 默认缓存 ~/.cache/huggingface/hub 下同名目录不完整，此处指向本机完整缓存
+#（含 snapshots 与 processor/tokenizer 文件）
+VLM_CACHE_DIR="/home/kf/lerobot_weights/smol_vla/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct"
+# 目录存在不代表缓存完整：校验关键文件（processor_config.json / tokenizer.json）
+VLM_SNAPSHOT_DIR=""
+for dir in "$VLM_CACHE_DIR"/snapshots/*/; do
+  [ -d "$dir" ] && VLM_SNAPSHOT_DIR="$dir" && break
+done
+if [ -n "$VLM_SNAPSHOT_DIR" ] && [ -f "$VLM_SNAPSHOT_DIR/processor_config.json" ] && [ -f "$VLM_SNAPSHOT_DIR/tokenizer.json" ]; then
+  echo "✅ 基础 VLM 已缓存（完整）：$VLM_CACHE_DIR"
 else
-  echo "⚠️ 警告：基础 VLM 未缓存，首次推理将尝试联网下载 $VLM_MODEL_NAME"
+  echo "❌ 错误：基础 VLM 缓存不完整 $VLM_CACHE_DIR"
+  echo "   缺少 processor_config.json / tokenizer.json 等文件，无法离线推理"
+  echo "   请从其他机器拷贝完整缓存，或联网后重新下载 $VLM_MODEL_NAME"
+  exit 1
 fi
 
 # ==================== 推理参数总览 ====================
@@ -154,6 +167,14 @@ export RERUN_FLUSH_NUM_BYTES=10000000
 
 # 设置 Rerun 内存限制为 30%（解决 1000 帧限制问题）
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
+
+# ==== 基础 VLM 完全离线加载（不访问 Hugging Face）====
+# 1) HF_HUB_CACHE 指向本机完整缓存目录（~/.cache/huggingface/hub 下同名缓存不完整）；
+# 2) HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE 强制 huggingface_hub 与 transformers 只读本地缓存，
+#    避免联网 HEAD 请求超时（当前环境外网不可达，否则会卡在 Retry 重试）。
+export HF_HUB_CACHE=/home/kf/lerobot_weights/smol_vla
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
 # 推理日志文件（输出同时显示在终端并写入此文件，便于事后查看）
 LOG_DIR="./infer_logs"
@@ -191,8 +212,8 @@ lerobot-rollout \
   --robot.right_arm_config.port=$RIGHT_FOLLOWER_PORT \
   --robot.left_arm_config.cameras="$LEFT_CAMERAS" \
   --robot.right_arm_config.cameras="$RIGHT_CAMERAS" \
-  --robot.left_arm_config.max_relative_target=20.0 \
-  --robot.right_arm_config.max_relative_target=20.0 \
+  --robot.left_arm_config.max_relative_target=40.0 \
+  --robot.right_arm_config.max_relative_target=40.0 \
   --dataset.repo_id=$EVAL_DATASET_NAME \
   --dataset.num_episodes=1 \
   --dataset.single_task="$TASK_DESCRIPTION" \
@@ -213,12 +234,17 @@ echo "=========================================="
 echo "✅ 双臂推理完成（SmolVLA）！"
 echo "=========================================="
 echo "评估数据集：$EVAL_DATASET_NAME"
-echo "Hugging Face Hub 链接："
-echo "  https://huggingface.co/datasets/$EVAL_DATASET_NAME"
+if [ "$PUSH_TO_HUB" = "true" ]; then
+  echo "Hugging Face Hub 链接："
+  echo "  https://huggingface.co/datasets/$EVAL_DATASET_NAME"
+else
+  echo "（PUSH_TO_HUB=false，数据仅保存在本地）"
+  echo "本地数据目录：$HOME/.cache/huggingface/lerobot/$EVAL_DATASET_NAME"
+fi
 echo "完整日志：$LOG_FILE"
 echo ""
 echo "💡 提示："
-echo "  1. 访问上述链接查看推理视频和轨迹"
+echo "  1. 查看上述数据目录/链接中的推理视频和轨迹"
 echo "  2. 分析模型性能和成功率"
 echo "  3. 如需重新推理，直接再次运行此脚本"
 echo "=========================================="
