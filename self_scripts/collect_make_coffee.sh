@@ -12,11 +12,24 @@
 set -e  # 遇到错误立即退出
 
 # ==================== 命令行参数 ====================
-# 检查是否传入 --resume 参数
+# --resume 模式：继续录制已存在的数据集
+# 用法：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_<时间戳>
+# 注意：必须传入完整的 repo_id（带时间戳），因为每次新建数据集时框架会自动加时间戳后缀。
 RESUME_MODE=false
+RESUME_REPO_ID=""
 if [ "$1" == "--resume" ]; then
   RESUME_MODE=true
-  echo "🔄 恢复模式：将从上次中断处继续录制"
+  if [ -z "$2" ]; then
+    echo "❌ 错误：--resume 模式必须指定要续录的数据集完整 repo_id（带时间戳）"
+    echo ""
+    echo "   可用会话："
+    ls -d "$HOME/.cache/huggingface/lerobot/hellozjt/coffee_cup_button_"* 2>/dev/null | sed 's|.*/||' | sort
+    echo ""
+    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522"
+    exit 1
+  fi
+  RESUME_REPO_ID="$2"
+  echo "🔄 恢复模式：续录数据集 $RESUME_REPO_ID"
 fi
 
 echo "=========================================="
@@ -56,11 +69,24 @@ RIGHT_CAMERAS='{
 }'
 
 # ==================== 数据集配置 ====================
-DATASET_NAME="hellozjt/coffee_cup_button"
+# 新建模式：使用基础名字（框架会自动加时间戳）
+# --resume 模式：使用传入的完整 repo_id（带时间戳）
+if [ -n "$RESUME_REPO_ID" ]; then
+  DATASET_NAME="$RESUME_REPO_ID"
+else
+  DATASET_NAME="hellozjt/coffee_cup_button"
+fi
+# 是否推送到 Hugging Face Hub
+# 当前环境外网不可达（huggingface.co 与 hf-mirror.com 均超时），建议保持 false，
+# 数据只保存在本地；网络恢复后改为 true 即可自动上传。
+PUSH_TO_HUB=false
+# 国内镜像源（配合上面开关；网络可用时生效）
+export HF_ENDPOINT=https://hf-mirror.com
+
 TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
-NUM_EPISODES=40
+NUM_EPISODES=50
 EPISODE_TIME=45  # 每个 episode 录制时长（秒）- 75秒 × 20fps = 1500帧
-RESET_TIME=20    # 重置环境时长（秒）
+RESET_TIME=5    # 重置环境时长（秒）
 FPS=20
 
 # ==================== 采集前检查 ====================
@@ -106,19 +132,48 @@ else
   echo "⚠️  校准文件目录不完整，首次运行时会提示校准"
 fi
 
+# ==================== 数据集保存位置检查 ====================
+echo ""
+echo "4. 检查数据集保存位置..."
+DATA_ROOT="$HOME/.cache/huggingface/lerobot"
+if [ "$RESUME_MODE" = true ]; then
+  DATA_DIR="$DATA_ROOT/$DATASET_NAME"
+  EXISTING_EPISODES=$(ls "$DATA_DIR"/meta/episodes/chunk-000/ 2>/dev/null | wc -l)
+  if [ -d "$DATA_DIR" ]; then
+    echo "✅ 续录目录已找到：$DATA_DIR"
+    echo "   已有 $EXISTING_EPISODES 个 episode，本次将追加 $NUM_EPISODES 个"
+  else
+    echo "❌ 错误：续录目录不存在：$DATA_DIR"
+    exit 1
+  fi
+else
+  DATA_DIR="（新建数据集，目录名由框架自动加时间戳生成）"
+  EXISTING_EPISODES=0
+  # 记录本次开始前已存在的 session，用于结束后识别本次新建的目录
+  OLD_SESSIONS=$(ls -d "$DATA_ROOT"/hellozjt/coffee_cup_button_* 2>/dev/null || true)
+  EXISTING_SESSIONS=$(echo "$OLD_SESSIONS" | grep -c . 2>/dev/null || echo 0)
+  echo "✅ 数据根目录：$DATA_ROOT/hellozjt/"
+  echo "   该目录下已有 $EXISTING_SESSIONS 个历史 session（本次会新建一个带时间戳的目录，不覆盖旧数据）"
+fi
+
 # ==================== 采集参数总览 ====================
 echo ""
 echo "=========================================="
 echo "采集参数总览"
 echo "=========================================="
+echo "录制模式：$(if [ "$RESUME_MODE" = true ]; then echo '续录（--resume）'; else echo '新建数据集'; fi)"
 echo "数据集名称：$DATASET_NAME"
+echo "本地保存路径：$DATA_DIR"
+echo "Episode 进度：已有 $EXISTING_EPISODES 集 + 本次录制 $NUM_EPISODES 集 = 共 $((EXISTING_EPISODES + NUM_EPISODES)) 集"
 echo "任务描述：$TASK_DESCRIPTION"
-echo "Episode 数量：$NUM_EPISODES"
 echo "每 Episode 时长：${EPISODE_TIME}秒"
 echo "重置时长：${RESET_TIME}秒"
 echo "采集频率：${FPS} Hz"
-echo "预计总时长：约 $((($EPISODE_TIME + $RESET_TIME) * $NUM_EPISODES / 60)) 分钟"
+echo "预计本次时长：约 $((($EPISODE_TIME + $RESET_TIME) * $NUM_EPISODES / 60)) 分钟"
 echo "=========================================="
+echo ""
+echo -e "📝 说明：录制过程中 lerobot-record 会实时打印每个 episode 的进度日志"
+echo -e "   （如 Recording episode N / episode summary），完成后脚本会汇总保存信息。"
 echo ""
 
 # 确认开始
@@ -159,31 +214,76 @@ RECORD_CMD="lerobot-record \
   --dataset.reset_time_s=$RESET_TIME \
   --dataset.video=true \
   --dataset.rgb_encoder.vcodec=h264 \
-  --dataset.push_to_hub=true \
+  --dataset.push_to_hub=$PUSH_TO_HUB \
   --display_data=true \
   --display_compressed_images=false"
 
 # 如果是恢复模式，添加 --resume 参数
+# 注意：resume 的 --dataset.root 必须指向数据集完整目录（含 repo_id 子路径），
+#       不能只给缓存根目录，否则本地元数据加载失败会触发 Hub 下载导致卡住。
 if [ "$RESUME_MODE" = true ]; then
-  RECORD_CMD="$RECORD_CMD --resume=true"
+  RECORD_CMD="$RECORD_CMD --resume=true --dataset.root=$DATA_ROOT/$DATASET_NAME"
 fi
 
 # 执行命令
+# 注意：录制完成后断开机械臂时，若夹爪处于过载状态可能报错（Overload error），
+#       导致 lerobot-record 非零退出（core dump）。此时数据已保存，不影响使用，
+#       因此这里不因退出码直接中断，而是提示后继续显示结果。
+set +e
 eval $RECORD_CMD
+RECORD_EXIT=$?
+set -e
+if [ $RECORD_EXIT -ne 0 ]; then
+  echo ""
+  echo "⚠️  lerobot-record 非零退出（exit=$RECORD_EXIT）"
+  echo "    若录制过程已完成（上方日志显示 episode 已保存/视频已编码），"
+  echo "    这通常是断开机械臂时的清理错误（如夹爪过载），数据不受影响。"
+  echo "    机械臂可能需要断电重启以复位过载保护。"
+fi
 
 # ==================== 采集完成 ====================
 echo ""
 echo "=========================================="
 echo "✅ 数据采集完成！"
 echo "=========================================="
+
+# 识别实际保存目录
+if [ "$RESUME_MODE" = true ]; then
+  SAVED_DIR="$DATA_DIR"
+else
+  # 新建模式：找本次开始前不存在、最新的 session 目录
+  SAVED_DIR=""
+  for d in $(ls -dt "$DATA_ROOT"/hellozjt/coffee_cup_button_* 2>/dev/null || true); do
+    if ! echo "$OLD_SESSIONS" | grep -qx "$d"; then
+      SAVED_DIR="$d"
+      break
+    fi
+  done
+  if [ -z "$SAVED_DIR" ]; then
+    SAVED_DIR="（未能自动定位，请到 $DATA_ROOT/hellozjt/ 下查看最新目录）"
+  fi
+fi
+
+# 统计实际保存的 episode 数
+SAVED_EPISODES=0
+if [ -d "$SAVED_DIR/meta/episodes/chunk-000" ]; then
+  SAVED_EPISODES=$(ls "$SAVED_DIR"/meta/episodes/chunk-000/ | wc -l)
+fi
+
 echo "数据集名称：$DATASET_NAME"
-echo "Episode 数量：$NUM_EPISODES"
-echo "Hugging Face Hub 链接："
-echo "  https://huggingface.co/datasets/$DATASET_NAME"
+echo "本地保存路径：$SAVED_DIR"
+echo "本次实际保存 Episode：$SAVED_EPISODES / 目标 $NUM_EPISODES"
+echo "   （该 session 累计：$((EXISTING_EPISODES + SAVED_EPISODES)) 集，见上面进度）"
+if [ "$PUSH_TO_HUB" = true ]; then
+  echo "Hugging Face Hub 链接："
+  echo "  https://huggingface.co/datasets/$DATASET_NAME"
+else
+  echo "上传状态：未推送到 Hub（PUSH_TO_HUB=false，数据仅保存在本地）"
+fi
 echo ""
 echo "💡 提示："
-echo "  如果录制过程中断，可以使用以下命令继续："
-echo "  ./collect_cap_pen_data.sh --resume"
+echo "  如果录制过程中断，可以使用以下命令续录："
+echo "  ./collect_make_coffee.sh --resume $DATASET_NAME"
 echo ""
 echo "下一步："
 echo "  1. 访问上述链接查看数据集"
