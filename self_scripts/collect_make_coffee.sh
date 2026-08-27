@@ -8,6 +8,11 @@
 # 支持中断继续录制：
 #   如果录制过程中断，可以添加 --resume 参数继续录制
 #   脚本会自动从上次中断的 episode 继续
+#
+# 按键结束每个 episode（2026-08-27 新增）：
+#   每个 episode 录制由操作者用按键结束，不再按固定时长结束：
+#   演示完任务后按 n（或右方向键）立即结束当前 episode 并保存。
+#   这是 lerobot-record 内置的键盘控制（n=next / r=re-record / q=quit），无需改框架代码。
 
 set -e  # 遇到错误立即退出
 
@@ -85,8 +90,11 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
 NUM_EPISODES=50
-EPISODE_TIME=45  # 每个 episode 录制时长（秒）- 75秒 × 20fps = 1500帧
-RESET_TIME=5    # 重置环境时长（秒）
+# 每个 episode 录制时长的安全上限（秒）
+# 录制由按键结束：演示完任务后按 n（或右方向键）立即结束当前 episode。
+# 该值只是防止忘记按键时无限录制的保险，实际时长取决于操作者何时按键。
+EPISODE_TIME=600
+RESET_TIME=5    # 重置环境时长（秒）；按 n / 右方向键可提前跳过等待
 FPS=20
 
 # ==================== 采集前检查 ====================
@@ -166,18 +174,23 @@ echo "数据集名称：$DATASET_NAME"
 echo "本地保存路径：$DATA_DIR"
 echo "Episode 进度：已有 $EXISTING_EPISODES 集 + 本次录制 $NUM_EPISODES 集 = 共 $((EXISTING_EPISODES + NUM_EPISODES)) 集"
 echo "任务描述：$TASK_DESCRIPTION"
-echo "每 Episode 时长：${EPISODE_TIME}秒"
-echo "重置时长：${RESET_TIME}秒"
+echo "每个 Episode 时长：由按键结束（安全上限 ${EPISODE_TIME}秒）"
+echo "重置时长：${RESET_TIME}秒（可按键提前跳过）"
 echo "采集频率：${FPS} Hz"
-echo "预计本次时长：约 $((($EPISODE_TIME + $RESET_TIME) * $NUM_EPISODES / 60)) 分钟"
+echo "预计本次时长：取决于演示节奏，总时长不固定"
 echo "=========================================="
 echo ""
-echo -e "📝 说明：录制过程中 lerobot-record 会实时打印每个 episode 的进度日志"
-echo -e "   （如 Recording episode N / episode summary），完成后脚本会汇总保存信息。"
+echo -e "📝 按键控制（录制过程中随时可用，注意焦点保持在终端窗口）："
+echo -e "   n / 右方向键 = 当前 episode 演示完成，结束录制并保存"
+echo -e "   r / 左方向键 = 重录上一个 episode"
+echo -e "   q / Esc      = 停止整个录制"
+echo ""
+echo -e "   每个 episode 流程：开始录制 → 演示任务 → 按 n 结束并保存 →"
+echo -e "   重置环境（可再按 n 跳过等待）→ 自动进入下一个 episode。"
 echo ""
 
 # 确认开始
-read -p "按 ENTER 开始数据采集，按 Ctrl+C 取消..." dummy
+read -p "按 ENTER 开始数据采集（每个 episode 演示完成后按 n 结束录制），按 Ctrl+C 取消..." dummy
 
 # ==================== 开始采集 ====================
 echo ""
