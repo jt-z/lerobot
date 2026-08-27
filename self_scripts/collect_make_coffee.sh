@@ -18,10 +18,13 @@ set -e  # 遇到错误立即退出
 
 # ==================== 命令行参数 ====================
 # --resume 模式：继续录制已存在的数据集
-# 用法：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_<时间戳>
+# 用法：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_<时间戳> [追加集数]
 # 注意：必须传入完整的 repo_id（带时间戳），因为每次新建数据集时框架会自动加时间戳后缀。
+#       第 3 个参数可选，指定本次追加的 episode 数（默认 $NUM_EPISODES）。
+#       示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522 100
 RESUME_MODE=false
 RESUME_REPO_ID=""
+NUM_EPISODES_OVERRIDE=""
 if [ "$1" == "--resume" ]; then
   RESUME_MODE=true
   if [ -z "$2" ]; then
@@ -31,9 +34,11 @@ if [ "$1" == "--resume" ]; then
     ls -d "$HOME/.cache/huggingface/lerobot/hellozjt/coffee_cup_button_"* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
     echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522"
+    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522 100  # 追加100集"
     exit 1
   fi
   RESUME_REPO_ID="$2"
+  NUM_EPISODES_OVERRIDE="${3:-}"
   echo "🔄 恢复模式：续录数据集 $RESUME_REPO_ID"
 fi
 
@@ -90,6 +95,10 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
 NUM_EPISODES=50
+# --resume 模式下允许用第 3 个命令行参数覆盖本次追加的集数
+if [ -n "$NUM_EPISODES_OVERRIDE" ]; then
+  NUM_EPISODES="$NUM_EPISODES_OVERRIDE"
+fi
 # 每个 episode 录制时长的安全上限（秒）
 # 录制由按键结束：演示完任务后按 n（或右方向键）立即结束当前 episode。
 # 该值只是防止忘记按键时无限录制的保险，实际时长取决于操作者何时按键。
@@ -146,8 +155,10 @@ echo "4. 检查数据集保存位置..."
 DATA_ROOT="$HOME/.cache/huggingface/lerobot"
 if [ "$RESUME_MODE" = true ]; then
   DATA_DIR="$DATA_ROOT/$DATASET_NAME"
-  EXISTING_EPISODES=$(ls "$DATA_DIR"/meta/episodes/chunk-000/ 2>/dev/null | wc -l)
   if [ -d "$DATA_DIR" ]; then
+    # 读取框架维护的 total_episodes（meta/info.json），这才是准确集数。
+    # 不能用 find videos -name 'episode_*.mp4'：v3.0 实际命名是 chunk-000/file-XXX.mp4，恒为 0。
+    EXISTING_EPISODES=$(python3 -c "import json; print(json.load(open('$DATA_DIR/meta/info.json'))['total_episodes'])" 2>/dev/null || echo 0)
     echo "✅ 续录目录已找到：$DATA_DIR"
     echo "   已有 $EXISTING_EPISODES 个 episode，本次将追加 $NUM_EPISODES 个"
   else
@@ -277,16 +288,18 @@ else
   fi
 fi
 
-# 统计实际保存的 episode 数
-SAVED_EPISODES=0
-if [ -d "$SAVED_DIR/meta/episodes/chunk-000" ]; then
-  SAVED_EPISODES=$(ls "$SAVED_DIR"/meta/episodes/chunk-000/ | wc -l)
+# 统计录制完成后的实际集数（读 meta/info.json 的 total_episodes）
+TOTAL_EPISODES=0
+if [ -d "$SAVED_DIR/meta" ]; then
+  TOTAL_EPISODES=$(python3 -c "import json; print(json.load(open('$SAVED_DIR/meta/info.json'))['total_episodes'])" 2>/dev/null || echo 0)
 fi
+SAVED_EPISODES=$((TOTAL_EPISODES - EXISTING_EPISODES))
+if [ "$SAVED_EPISODES" -lt 0 ]; then SAVED_EPISODES=0; fi
 
 echo "数据集名称：$DATASET_NAME"
 echo "本地保存路径：$SAVED_DIR"
 echo "本次实际保存 Episode：$SAVED_EPISODES / 目标 $NUM_EPISODES"
-echo "   （该 session 累计：$((EXISTING_EPISODES + SAVED_EPISODES)) 集，见上面进度）"
+echo "   （该 session 累计：$TOTAL_EPISODES 集）"
 if [ "$PUSH_TO_HUB" = true ]; then
   echo "Hugging Face Hub 链接："
   echo "  https://huggingface.co/datasets/$DATASET_NAME"
