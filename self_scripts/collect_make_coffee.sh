@@ -21,7 +21,7 @@ set -e  # 遇到错误立即退出
 # 用法：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_<时间戳> [追加集数]
 # 注意：必须传入完整的 repo_id（带时间戳），因为每次新建数据集时框架会自动加时间戳后缀。
 #       第 3 个参数可选，指定本次追加的 episode 数（默认 $NUM_EPISODES）。
-#       示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522 100
+#       示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220 100
 RESUME_MODE=false
 RESUME_REPO_ID=""
 NUM_EPISODES_OVERRIDE=""
@@ -33,8 +33,8 @@ if [ "$1" == "--resume" ]; then
     echo "   可用会话："
     ls -d "$HOME/.cache/huggingface/lerobot/hellozjt/coffee_cup_button_"* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
-    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522"
-    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_231522 100  # 追加100集"
+    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220"
+    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220 100  # 追加100集"
     exit 1
   fi
   RESUME_REPO_ID="$2"
