@@ -50,8 +50,8 @@ RIGHT_CAMERAS='{
 }'
 
 # ==================== 模型配置 ====================
-# ACT（本机训练，coffee_cup_button 任务，37500 步）:
-MODEL_PATH="/home/kf/lerobot_weights/act/pretrained_model"
+# ACT（本机训练，coffee_cup_button_clean 任务，50000 步）:
+MODEL_PATH="/home/kf/dev/lerobot/model_weights/act_50k_clean_dataset/pretrained_model"
 
 # ==================== 数据集配置 ====================
 # 注意：lerobot-rollout 强制要求数据集名以 rollout_ 开头（见 rollout/context.py）
