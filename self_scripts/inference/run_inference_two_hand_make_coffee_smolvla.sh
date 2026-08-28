@@ -65,7 +65,7 @@ VLM_MODEL_NAME="HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
 EVAL_DATASET_NAME="hellozjt/rollout_coffee_cup_button_smolvla"
 # SmolVLA 是语言条件模型：此任务描述就是推理时的文本提示，必须与训练任务完全一致
 TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
-EPISODE_TIME=100  # 推理时长（秒）
+EPISODE_TIME=200  # 推理时长（秒）
 FPS=20
 # 是否推送到 Hugging Face Hub（当前环境外网不可达，保持 false 数据仅保存在本地；
 # 联网后可改回 true）
@@ -203,6 +203,11 @@ export LEROBOT_ACTION_DIAG="$LOG_DIR/action_diag"
 #   - --dataset.single_task 是语言条件文本提示（SmolVLA 必需），必须与训练任务一致
 #   - 无需 rename_map：机器人 4 路摄像头输出 key 与 SmolVLA 模型输入 key 完全一致
 #   - --duration 为总时长上限（保护）；episode 轮转由 episode_time_s 控制
+#   - --use_torch_compile=true：torch.compile 加速 VLM 推理（max-autotune），缩短每 2.5s 一次
+#     chunk 推理停顿（sync 推理卡顿来源），不改变 num_steps=10 故不损失动作精度。
+#     ⚠️ 首次运行会触发懒编译（约 2-3 分钟，发生在第一个 tick 的推理里），会消耗掉
+#     --duration 预算导致只录 1 帧就结束——属正常现象，编译产物缓存在
+#     ~/.cache/torch/inductor，第二次运行即恢复正常。
 lerobot-rollout \
   --strategy.type=episodic \
   --policy.path=$MODEL_PATH \
@@ -226,7 +231,8 @@ lerobot-rollout \
   --dataset.push_to_hub=$PUSH_TO_HUB \
   --duration=$EPISODE_TIME \
   --display_data=true \
-  --display_compressed_images=false 2>&1 | tee "$LOG_FILE"
+  --display_compressed_images=false \
+  --use_torch_compile=true 2>&1 | tee "$LOG_FILE"
 
 # ==================== 推理完成 ====================
 echo ""
