@@ -179,3 +179,6 @@ outputs/
 *.urdf
 *.xml
 *.part
+
+# 自用脚本的运行日志与诊断产物（统一归档，不入库）
+self_scripts/_logs/
