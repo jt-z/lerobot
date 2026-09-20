@@ -2,7 +2,7 @@
 # 单 B601-RS 单臂 X-VLA 推理（lerobot-rollout + sync）
 # 任务：单臂端起纸杯放上咖啡机托盘并按下按钮（与采集/微调数据集的任务文本一致）
 #
-# 前置：先用 self_scripts/single_B601_make_coffee/train_xvla_single_b601.sh
+# 前置：先用 self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh
 #       在单臂 B601 数据上完成 Phase II 微调，得到 MODEL_PATH。
 #       xvla-base 本体无法直接控制 B601（没见过 Seeed/B601 域，且默认输出 20 维双臂末端位姿）。
 #
@@ -100,7 +100,7 @@ fi
 echo "1. 检查模型权重..."
 if [ -z "$MODEL_PATH" ]; then
   echo "❌ MODEL_PATH 为空：X-VLA 微调权重尚未就位。"
-  echo "   请先运行 self_scripts/single_B601_make_coffee/train_xvla_single_b601.sh，"
+  echo "   请先运行 self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh，"
   echo "   再把 <OUTPUT_DIR>/checkpoints/<step>/pretrained_model 路径填到本脚本顶部 MODEL_PATH。"
   exit 1
 fi

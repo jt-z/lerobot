@@ -16,9 +16,9 @@
 # 微调完成后，推理脚本见：
 #   self_scripts/inference/pretrianed_models/run_inference_single_b601_make_coffee_xvla.sh
 #
-# 用法：
-#   bash train_xvla_single_b601.sh
-#   换数据集：bash train_xvla_single_b601.sh <session 名>
+# 用法（脚本内部全用绝对路径，任意 cwd 均可）：
+#   bash self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh
+#   换数据集：bash self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh <session 名>
 #
 # 创建日期：2026-09-10
 
