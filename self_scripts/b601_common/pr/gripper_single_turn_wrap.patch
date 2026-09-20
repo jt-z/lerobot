@@ -1,0 +1,215 @@
+--- /tmp/seeed_pkg/a_orig/seeed_b601_follower.py	2026-09-09 14:29:27.531290139 +0800
++++ /tmp/seeed_pkg/b_en/lerobot_robot_seeed_b601/seeed_b601_follower.py	2026-09-09 14:29:27.545290675 +0800
+@@ -1,5 +1,9 @@
++import csv
++import json
+ import logging
+ import math
++import os
++import pathlib
+ import time
+ from dataclasses import dataclass, field
+ from functools import cached_property
+@@ -232,9 +236,163 @@
+         self._save_calibration()
+         print(f"Calibration saved to {self.calibration_fpath}")
+ 
++    def _log_gripper_raw(self, tag: str) -> None:
++        """Append the gripper motor's raw angle (deg, no direction scaling) to a CSV.
++
++        Enabled by setting the env var ``B601_GRIPPER_RAW_LOG`` to a CSV path
++        (e.g. ``export B601_GRIPPER_RAW_LOG=~/LX/pai0/logs/gripper_raw.csv``).
++        Used to detect whether RobStride re-zeros (writes home) on enable: compare
++        the raw angle right after a session's configure/enable with the physical
++        angle the gripper was left at (e.g. after a prior run's safe_zero).
++        """
++        csv_path = os.environ.get("B601_GRIPPER_RAW_LOG")
++        if not csv_path:
++            return
++        raw_deg = None
++        gripper = self.motors.get(FOLLOWER_GRIPPER_MOTOR)
++        if gripper is not None:
++            try:
++                gripper.request_feedback()
++                self.bus.poll_feedback_once()
++                state = gripper.get_state()
++                if state is not None:
++                    raw_deg = math.degrees(state.pos)
++            except Exception as exc:  # pragma: no cover - logging must never break the loop
++                logger.warning("gripper raw log failed at %s: %s", tag, exc)
++
++        os.makedirs(os.path.dirname(os.path.abspath(csv_path)), exist_ok=True)
++        is_new = not os.path.exists(csv_path)
++        with open(csv_path, "a", newline="") as fh:
++            writer = csv.writer(fh)
++            if is_new:
++                writer.writerow(["timestamp", "tag", "gripper_raw_deg", "id"])
++            writer.writerow(
++                [
++                    time.strftime("%Y-%m-%d %H:%M:%S"),
++                    tag,
++                    f"{raw_deg:.4f}" if raw_deg is not None else "NA",
++                    self.id,
++                ]
++            )
++
++    # ---- Gripper reading normalization + cross-session continuity check ----
++    # RobStride uses a 14-bit single-turn absolute magnetic encoder. After a power
++    # cycle the reading for the same physical position can shift by a full turn
++    # (measured: 269.1 deg -> -90.8 deg). We therefore keep gripper observations in
++    # the [0, 360) domain and sanity-check continuity against the position saved at
++    # the previous exit, so a wrapped/negative reading can never corrupt observations.
++
++    @staticmethod
++    def _normalize_deg(deg: float) -> float:
++        """Wrap any angle into [0, 360)."""
++        return deg % 360.0
++
++    def _gripper_last_deg_fpath(self):
++        return pathlib.Path(self.calibration_fpath).with_name(f"{self.id}_gripper_last_deg.json")
++
++    def _read_gripper_deg_raw(self) -> float | None:
++        """Read the gripper motor's raw angle in degrees (no scaling), or None."""
++        gripper = self.motors.get(FOLLOWER_GRIPPER_MOTOR)
++        if gripper is None:
++            return None
++        try:
++            gripper.request_feedback()
++            self.bus.poll_feedback_once()
++            state = gripper.get_state()
++            return math.degrees(state.pos) if state is not None else None
++        except Exception:
++            return None
++
++    def _load_last_gripper_deg(self) -> float | None:
++        fpath = self._gripper_last_deg_fpath()
++        if not fpath.exists():
++            return None
++        try:
++            return float(json.loads(fpath.read_text()).get("deg"))
++        except Exception:
++            return None
++
++    def _save_last_gripper_deg(self, deg: float) -> None:
++        fpath = self._gripper_last_deg_fpath()
++        try:
++            fpath.write_text(json.dumps({"timestamp": time.time(), "deg": round(float(deg), 4)}))
++        except Exception as exc:  # never break the control loop
++            logger.warning("failed to save gripper last deg to %s: %s", fpath, exc)
++
++    def _gripper_startup_check(self) -> None:
++        """Startup sanity check: normalize the current gripper reading into [0, 360)
++
++        and warn when it is discontinuous with the position saved at the previous exit.
++        Observation semantics only - never drives the motor and never alters any
++        target / clamp / safety logic.
++        Console format: raw=<raw> | normalized=<norm> | last_exit=<last> | delta=<d>
++        """
++        raw = self._read_gripper_deg_raw()
++        if raw is None:
++            print("[gripper] cannot read gripper feedback after enable (NA) - check motor state", flush=True)
++            logger.warning("gripper startup check skipped: cannot read gripper feedback.")
++            return
++        norm = self._normalize_deg(raw)
++        # Home check: report the current reading as a signed offset from the 0-deg
++        # point (>180 readings fold to the shortest direction). When the gripper is
++        # physically at 0 this should be ~0 deg; |offset| <= 10 deg means aligned.
++        home_err = ((norm + 180.0) % 360.0) - 180.0
++        home_tag = "[zero aligned OK]" if abs(home_err) <= 10.0 else "[zero offset! recalibrate or verify position]"
++        print(
++            f"[gripper] home offset ~= {home_err:+.2f} deg | raw={raw:.2f} deg norm={norm:.2f} deg "
++            f"{home_tag}",
++            flush=True,
++        )
++        last = self._load_last_gripper_deg()
++        if last is None:
++            print(
++                f"[gripper] raw={raw:.2f} deg | normalized={norm:.2f} deg | "
++                "last_exit=none (first run)",
++                flush=True,
++            )
++            logger.info(
++                "gripper startup: no previous session recorded, normalized raw = %.2f° (raw %.2f°).",
++                norm,
++                raw,
++            )
++            return
++        # Shortest arc difference in (-180, 180]: e.g. 350 deg vs 10 deg is treated
++        # as continuous (delta 20). A large delta means the gripper was moved by hand
++        # while powered off, or its zero reference shifted.
++        delta = (norm - last + 180.0) % 360.0 - 180.0
++        print(
++            f"[gripper] raw={raw:.2f} deg | normalized={norm:.2f} deg | "
++            f"last_exit={last:.2f} deg | delta={delta:.2f} deg",
++            flush=True,
++        )
++        if abs(delta) <= 60.0:
++            logger.info(
++                "gripper startup: continuous with last exit (last %.2f°, now %.2f°).",
++                last,
++                norm,
++            )
++        else:
++            logger.warning(
++                "gripper startup: |delta|=%.1f° vs last exit %.2f° (now %.2f°). "
++                "Gripper was likely moved by hand while powered off, or its zero "
++                "reference shifted. Verify the gripper is in a known position before use.",
++                abs(delta),
++                last,
++                norm,
++            )
++
+     def configure(self) -> None:
+         """Configure motors with appropriate settings."""
+         # Keep torque off while switching modes, then enable after all motors are configured.
++        self._log_gripper_raw("configure_before_disable")
++        # Diagnostics: a disabled motor usually reports no feedback (NA is normal).
++        # This print helps spot a still-uncalibrated/wrapped reading (e.g. -90 deg);
++        # after enabling, _gripper_startup_check prints the normalized result.
++        pre_raw = self._read_gripper_deg_raw()
++        if pre_raw is not None:
++            print(f"[gripper] raw angle before enable: {pre_raw:.2f} deg", flush=True)
++        else:
++            print("[gripper] raw angle before enable: NA (no feedback while disabled; normal)", flush=True)
+         self.bus.disable_all()
+         num_retry = 9
+         for motor_name, motor in self.motors.items():
+@@ -253,6 +411,8 @@
+                     time.sleep(MEDIUM_TIMEOUT_SEC)
+             logger.info(f"{motor_name} ensure mode {target_mode}")
+         self.bus.enable_all()
++        self._log_gripper_raw("configure_after_enable")
++        self._gripper_startup_check()
+ 
+     def disable_torque(self) -> None:
+         """Disable follower motor torque so the arm can be moved by hand during read-only debugging."""
+@@ -558,7 +718,13 @@
+             state = motor.get_state()
+             if state is not None:
+                 # motorbridge works natively in radians. Convert to degrees.
+-                obs_dict[f"{motor_name}.pos"] = math.degrees(state.pos)
++                pos_deg = math.degrees(state.pos)
++                if motor_name == FOLLOWER_GRIPPER_MOTOR:
++                    # Single-turn absolute encoder readings can wrap by a full turn
++                    # after a power cycle (269 deg -> -91 deg). Normalize into
++                    # [0, 360) so observations/model coordinates stay consistent.
++                    pos_deg = self._normalize_deg(pos_deg)
++                obs_dict[f"{motor_name}.pos"] = pos_deg
+                 obs_dict[f"{motor_name}.vel"] = math.degrees(state.vel)
+                 obs_dict[f"{motor_name}.torque"] = state.torq
+             else:
+@@ -701,6 +867,14 @@
+                 "(_skip_safe_zero_on_disconnect=True)."
+             )
+ 
++        # Record gripper raw angle right before disabling (after safe_zero), so
++        # the next session's "configure_after_enable" value can be compared to it.
++        self._log_gripper_raw("disconnect_before_disable")
++        # Save the normalized exit angle for next-session continuity checks.
++        final_raw = self._read_gripper_deg_raw()
++        if final_raw is not None:
++            self._save_last_gripper_deg(self._normalize_deg(final_raw))
++
+         for motor in self.motors.values():
+             if self.config.disable_torque_on_disconnect:
+                 motor.disable()
