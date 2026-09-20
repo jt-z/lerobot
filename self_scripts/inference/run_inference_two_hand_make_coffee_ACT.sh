@@ -57,7 +57,7 @@ MODEL_PATH="/home/kf/dev/lerobot/model_weights/act_50k_clean_dataset/pretrained_
 # 注意：lerobot-rollout 强制要求数据集名以 rollout_ 开头（见 rollout/context.py）
 EVAL_DATASET_NAME="hellozjt/rollout_coffee_cup_button_act"
 TASK_DESCRIPTION="Pick up the paper cup with both arms, place it on the silver tray of the coffee machine, press the button with the right arm (red light on), wait about 4 seconds, release the button (red light off), then place the cup on the table with the left arm"
-EPISODE_TIME=400  # 推理时长（秒）
+EPISODE_TIME=150  # 推理时长（秒）
 FPS=20
 # 是否推送到 Hugging Face Hub（外网不可达时改为 false，数据仅保存在本地）
 PUSH_TO_HUB=true
