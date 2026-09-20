@@ -17,10 +17,10 @@
 
 用法：
     conda activate lerobot
-    python tool/05_monitor_motors.py                            # 默认 can0 + 右臂 by-id 串口
-    python tool/05_monitor_motors.py --so101-port /dev/ttyACM1  # 指定右臂串口
-    python tool/05_monitor_motors.py --no-right                 # 只看左臂 B601
-    python tool/05_monitor_motors.py --no-left                  # 只看右臂 SO-101
+    python self_scripts/b601_so101_bimanual/03_monitor_motors.py                            # 默认 can0 + 右臂 by-id 串口
+    python self_scripts/b601_so101_bimanual/03_monitor_motors.py --so101-port /dev/ttyACM1  # 指定右臂串口
+    python self_scripts/b601_so101_bimanual/03_monitor_motors.py --no-right                 # 只看左臂 B601
+    python self_scripts/b601_so101_bimanual/03_monitor_motors.py --no-left                  # 只看右臂 SO-101
 
 注意：
     - 监控进程独占对应串口/CAN，勿与遥操作/录制进程同时打开同一硬件。

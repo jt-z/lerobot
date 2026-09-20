@@ -1,5 +1,5 @@
 #!/bin/bash
-# 双臂 SmolVLA 推理脚本（参照 run_inference_two_hand_make_coffee_ACT.sh 改写）
+# 双臂 SmolVLA 推理脚本（参照 self_scripts/so101_bimanual/inference/run_inference_make_coffee_ACT.sh 改写）
 # 任务：Pick up the paper cup with both arms, place it on the silver tray of the coffee machine,
 #       press the button with the right arm (red light on), wait about 4 seconds, release the button
 #       (red light off), then place the cup on the table with the left arm
@@ -19,7 +19,7 @@ echo "=========================================="
 echo ""
 
 # ==================== 硬件配置 ====================
-# 端口映射（与 collect_make_coffee.sh / teleoperate_dual_so101.sh 一致，2026-08-26 实测）：
+# 端口映射（与 self_scripts/so101_bimanual/03_collect_make_coffee.sh / self_scripts/so101_bimanual/02_teleoperate.sh 一致，2026-08-26 实测）：
 #   左从臂 = USB 序列号 5C82108837（当前枚举为 ttyACM2）
 #   右从臂 = USB 序列号 5B61034841（当前枚举为 ttyACM3）
 # 注意：ttyACM 编号随插拔顺序变化，故下面用 /dev/serial/by-id 稳定路径，
@@ -31,7 +31,7 @@ RIGHT_FOLLOWER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034841-if0
 # ==================== 摄像头配置 ====================
 # SmolVLA 模型输入需要 4 路摄像头：left_hand / left_top / left_front / right_hand
 # （与 ACT 一致，见 10k_pretrained_model/config.json 的 input_features）
-# 摄像头映射（2026-08-26 实测，与采集训练数据的 collect_make_coffee.sh 一致）：
+# 摄像头映射（2026-08-26 实测，与采集训练数据的 self_scripts/so101_bimanual/03_collect_make_coffee.sh 一致）：
 #   left_hand  = icSpring 无序列号（当前枚举为 /dev/video6）
 #   left_top   = icSpring 202404160005（当前枚举为 /dev/video2）
 #   left_front = JYU2C-2083 2607031（当前枚举为 /dev/video4）
@@ -177,7 +177,7 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
 # 推理日志文件（输出同时显示在终端并写入此文件，便于事后查看）
-LOG_DIR="./infer_logs"
+LOG_DIR="$HOME/LX/pai0/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_smolvla_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

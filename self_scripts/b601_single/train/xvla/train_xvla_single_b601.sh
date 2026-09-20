@@ -14,11 +14,11 @@
 #   7 → pad 到 20 → 推理时再裁回 7，无需任何代码改动。
 #
 # 微调完成后，推理脚本见：
-#   self_scripts/inference/pretrianed_models/run_inference_single_b601_make_coffee_xvla.sh
+#   self_scripts/b601_single/inference/pretrained_models/run_inference_single_b601_make_coffee_xvla.sh
 #
 # 用法（脚本内部全用绝对路径，任意 cwd 均可）：
-#   bash self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh
-#   换数据集：bash self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh <session 名>
+#   bash self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh
+#   换数据集：bash self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh <session 名>
 #
 # 创建日期：2026-09-10
 
@@ -111,9 +111,9 @@ print('|'.join([str(i) for i in t.index.tolist()]))
 echo "   任务文本：${TASK_STR:-（空）}"
 if [ -z "$TASK_STR" ]; then
   echo ""
-  echo "⚠️  警告：数据集里的任务文本为空字符串（采集时 05_b601_record.sh 的 TASK_DESCRIPTION 未填）。"
+  echo "⚠️  警告：数据集里的任务文本为空字符串（采集时 self_scripts/b601_single/02_record.sh 的 TASK_DESCRIPTION 未填）。"
   echo "    X-VLA 是语言条件模型，空 prompt 会让语言分支失效，只能靠图像+本体状态学任务。"
-  echo "    建议：先在 tool/05_b601_record.sh 填好 TASK_DESCRIPTION 再补采，或改用带任务文本的数据集。"
+  echo "    建议：先在 self_scripts/b601_single/02_record.sh 填好 TASK_DESCRIPTION 再补采，或改用带任务文本的数据集。"
   echo "    推理脚本的 --dataset.single_task 必须与此处文本完全一致。"
 fi
 

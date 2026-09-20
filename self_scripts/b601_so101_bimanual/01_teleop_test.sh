@@ -5,7 +5,7 @@
 #   teleop = bi_b601_so101_leader（左 StarArm102 /dev/ttyUSB0 + 右 SO-101 主臂）
 #
 # 依赖：lerobot conda 环境（含 lerobot-robot-seeed-b601 包）
-# 用法：bash 03_teleop_test.sh
+# 用法：bash self_scripts/b601_so101_bimanual/01_teleop_test.sh
 #
 # ⚠️ 安全须知（双臂同时使能，务必先读）：
 #   1. 连接后两条从臂电机都会【使能变硬】

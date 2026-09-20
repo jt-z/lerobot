@@ -13,7 +13,7 @@ set -e  # 遇到错误立即退出
 # ========================================
 # 配置区域 - 根据你的实际串口修改
 # ========================================
-# 端口映射（2026-08-26 实测，与 teleoperate_dual_so101.sh 一致）：
+# 端口映射（2026-08-26 实测，与 self_scripts/so101_bimanual/02_teleoperate.sh 一致）：
 #   左从臂 = USB 序列号 5C82108837（当前枚举为 ttyACM2）
 #   右从臂 = USB 序列号 5B61034841（当前枚举为 ttyACM3）
 #   左主臂 = USB 序列号 5C82106862（当前枚举为 ttyACM0）
@@ -239,7 +239,7 @@ main() {
     echo "  ${CALIB_DIR}/teleoperators/so_leader/${LEADER_ID}_{left,right}.json"
     echo ""
     echo -e "${YELLOW}现在可以运行遥操作脚本：${NC}"
-    echo "  ./self_scripts/teleoperate_dual_so101.sh"
+    echo "  ./self_scripts/so101_bimanual/02_teleoperate.sh"
 }
 
 # 运行主函数

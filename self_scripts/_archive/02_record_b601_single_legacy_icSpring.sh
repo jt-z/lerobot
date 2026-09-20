@@ -1,6 +1,13 @@
 #!/bin/bash
+# ⚠️ 已归档（历史版本，不要再用）：B601 单臂采集的旧版。
+#    现用版 = self_scripts/b601_single/02_record.sh，与旧版有三处实质差异：
+#      1) 数据根目录：$HOME/LX/pai0/hellozjt/  →  $HOME/LX/pai0/b601_data/（repo_id 去掉 hellozjt 前缀）
+#      2) top 相机：icSpring 202404160005（实测只有 20fps、会掉到 10fps）→ JYU2C 2607060
+#      3) 任务描述：补充了"拿方块按按钮"环节
+#    仅作历史对照保留。
+#
 # 单臂数据采集：B601-RS 从臂（RobStride，SocketCAN）+ StarArm102 主臂
-# 参照 tool/04_bimanual_record.sh（原为 B601+SO-101 异构双臂版，本脚本为 B601 单臂版）
+# 参照 self_scripts/b601_so101_bimanual/02_record.sh（原为 B601+SO-101 异构双臂版，本脚本为 B601 单臂版）
 # 使用单臂 lerobot 类型：
 #   robot  = seeed_b601_rs_follower（B601-RS，can0）
 #   teleop = rebot_102_leader（StarArm102 /dev/ttyUSB0）
@@ -24,9 +31,9 @@
 #   5. 紧急停止 = 切断 48V 电源
 #   6. 启动前把【主臂和从臂】都摆到零位
 #
-# 用法：bash record_single_b601.sh
-#   续录：bash record_single_b601.sh --resume <完整repo_id> [追加集数]
-#   示例：bash record_single_b601.sh --resume hellozjt/single_b601_make_coffee_20260908_000000 20
+# 用法（已弃用）：bash self_scripts/_archive/02_record_b601_single_legacy_icSpring.sh
+#   续录：bash self_scripts/_archive/02_record_b601_single_legacy_icSpring.sh --resume <完整repo_id> [追加集数]
+#   示例：bash self_scripts/_archive/02_record_b601_single_legacy_icSpring.sh --resume hellozjt/single_b601_make_coffee_20260908_000000 20
 
 set -e
 set -o pipefail
@@ -68,7 +75,7 @@ if [ "$1" == "--resume" ]; then
     echo "   可用会话："
     ls -d "$DATA_ROOT/hellozjt/${DATASET_PREFIX#hellozjt/}_"* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
-    echo "   示例：bash record_single_b601.sh --resume hellozjt/single_b601_make_coffee_20260908_000000"
+    echo "   示例：bash self_scripts/b601_single/02_record.sh --resume hellozjt/single_b601_make_coffee_20260908_000000"
     exit 1
   fi
   RESUME_REPO_ID="$2"
@@ -91,7 +98,7 @@ FOLLOWER_PORT="can0"
 FOLLOWER_ADAPTER="socketcan"
 # 重力补偿（对 6 个 RS 关节做前馈），开启后手感更轻
 GRAVITY_COMPENSATION=true
-# 从臂关节方向修正（沿用 tool/03、04 中 B601 的实测值，与 teleop_single_b601.sh 保持一致；
+# 从臂关节方向修正（沿用 self_scripts/b601_so101_bimanual/01_teleop_test.sh、02_record.sh 中 B601 的实测值，与 self_scripts/b601_single/01_teleop.sh 保持一致；
 # 若某关节方向相反/被限位裁到 0，调整对应符号）
 FOLLOWER_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
 
@@ -131,7 +138,7 @@ fi
 # 每个 episode 录制时长的安全上限（秒）；录制由按键结束，该值只是防无限录制的保险
 EPISODE_TIME=600
 RESET_TIME=5    # 重置环境时长（秒）；按 n / 右方向键可提前跳过等待
-# 采集频率（Hz）：与 tool/04 中 B601 一致，采用 30Hz
+# 采集频率（Hz）：与 self_scripts/b601_so101_bimanual/02_record.sh 中 B601 一致，采用 30Hz
 FPS=30
 
 # ==================== 采集前检查 ====================
@@ -345,7 +352,7 @@ fi
 echo ""
 echo "💡 提示："
 echo "  如果录制过程中断，可以使用以下命令续录："
-echo "  ./record_single_b601.sh --resume $DATASET_NAME"
+echo "  ./self_scripts/b601_single/02_record.sh --resume $DATASET_NAME"
 echo ""
 echo "下一步："
 echo "  1. 检查数据质量"

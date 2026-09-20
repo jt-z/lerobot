@@ -21,9 +21,9 @@
 #   5. 紧急停止 = 切断 48V 电源（B601 从臂）/ SO-101 从臂电源
 #   6. 启动前把【两条主臂和两条从臂】都摆到零位
 #
-# 用法：bash 04_bimanual_record.sh
-#   续录：bash 04_bimanual_record.sh --resume <完整repo_id> [追加集数]
-#   示例：bash 04_bimanual_record.sh --resume hellozjt/b601_so101_20260831_120000 20
+# 用法：bash self_scripts/b601_so101_bimanual/02_record.sh
+#   续录：bash self_scripts/b601_so101_bimanual/02_record.sh --resume <完整repo_id> [追加集数]
+#   示例：bash self_scripts/b601_so101_bimanual/02_record.sh --resume hellozjt/b601_so101_20260831_120000 20
 
 set -e
 set -o pipefail
@@ -59,7 +59,7 @@ if [ "$1" == "--resume" ]; then
     echo "   可用会话："
     ls -d "$HOME/LX/pai0/hellozjt/b601_so101_"* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
-    echo "   示例：bash 04_bimanual_record.sh --resume hellozjt/b601_so101_20260831_120000"
+    echo "   示例：bash self_scripts/b601_so101_bimanual/02_record.sh --resume hellozjt/b601_so101_20260831_120000"
     exit 1
   fi
   RESUME_REPO_ID="$2"
@@ -348,7 +348,7 @@ fi
 echo ""
 echo "💡 提示："
 echo "  如果录制过程中断，可以使用以下命令续录："
-echo "  ./04_bimanual_record.sh --resume $DATASET_NAME"
+echo "  ./self_scripts/b601_so101_bimanual/02_record.sh --resume $DATASET_NAME"
 echo ""
 echo "下一步："
 echo "  1. 检查数据质量"

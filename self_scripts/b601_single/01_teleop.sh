@@ -1,12 +1,12 @@
 #!/bin/bash
 # 单臂遥操作测试：B601-RS 从臂（RobStride，SocketCAN）+ StarArm102 主臂
-# 参照 tool/03_teleop_test.sh（原为 B601+SO-101 异构双臂版，本脚本为 B601 单臂版）
+# 参照 self_scripts/b601_so101_bimanual/01_teleop_test.sh（原为 B601+SO-101 异构双臂版，本脚本为 B601 单臂版）
 # 使用单臂 lerobot 类型：
 #   robot  = seeed_b601_rs_follower（B601-RS，can0，RobStride 电机）
 #   teleop = rebot_102_leader（StarArm102 /dev/ttyUSB0，FashionStar UART 舵机）
 #
 # 依赖：lerobot conda 环境（含 lerobot-robot-seeed-b601 包，脚本会自动尝试激活）
-# 用法：bash teleop_single_b601.sh
+# 用法：bash self_scripts/b601_single/01_teleop.sh
 #
 # ⚠️ 安全须知（从臂使能后会变硬，务必先读）：
 #   1. 连接后从臂电机【使能变硬】
@@ -33,7 +33,7 @@ FOLLOWER_PORT="can0"
 FOLLOWER_ADAPTER="socketcan"
 # 重力补偿（对 6 个 RS 关节做前馈），开启后手感更轻，建议保持 true
 GRAVITY_COMPENSATION=true
-# 从臂关节方向修正（2026-09-08 沿用 tool/03、04 中 B601 的实测值，必须保留，
+# 从臂关节方向修正（2026-09-08 沿用 self_scripts/b601_so101_bimanual/01_teleop_test.sh、02_record.sh 中 B601 的实测值，必须保留，
 # 否则 shoulder_lift/gripper 会被限位裁到 0 不动；wrist_roll 保持 -1.0 手感一致）
 FOLLOWER_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
 
@@ -106,7 +106,7 @@ if [ "$CALIB_OK" = false ]; then
   echo "❌ 校准文件不完整。请先完成校准："
   echo "   从臂（B601-RS）：  lerobot-calibrate --robot.type=seeed_b601_rs_follower --robot.port=$FOLLOWER_PORT --robot.can_adapter=$FOLLOWER_ADAPTER --robot.id=$FOLLOWER_ID"
   echo "   主臂（StarArm102）：lerobot-calibrate --teleop.type=rebot_102_leader --teleop.port=$LEADER_PORT --teleop.id=$LEADER_ID"
-  echo "   或参考 self_scripts/tools/01_joint_calibration.sh、02_follower_calibration.sh"
+  echo "   或参考 self_scripts/b601_common/01_leader_calibration.sh、02_follower_calibration.sh"
   exit 1
 fi
 

@@ -11,7 +11,7 @@ set -e  # 遇到错误立即退出
 # ========================================
 # 配置区域 - 根据你的实际串口修改
 # ========================================
-# 端口映射（2026-08-26 实测，与 run_inference_two_hand_cap_pen_PI05.sh 一致）：
+# 端口映射（2026-08-26 实测，与 self_scripts/so101_bimanual/inference/old_dataset/run_inference_cap_pen_PI05.sh 一致）：
 #   左从臂 = USB 序列号 5C82108837（当前枚举为 ttyACM2）
 #   右从臂 = USB 序列号 5B61034841（当前枚举为 ttyACM3）
 #   左主臂 = USB 序列号 5C82106862（当前枚举为 ttyACM0）
@@ -45,7 +45,7 @@ DISPLAY_DATA=true
 # ========================================
 # 摄像头配置
 # ========================================
-# 摄像头映射（2026-08-26 实测，与 run_inference_two_hand_cap_pen_PI05.sh 一致）：
+# 摄像头映射（2026-08-26 实测，与 self_scripts/so101_bimanual/inference/old_dataset/run_inference_cap_pen_PI05.sh 一致）：
 #   左臂手部 = icSpring 无序列号
 #   左臂顶部 = icSpring 202404160005
 #   右臂手部 = JYU2C-2083 2607060
@@ -192,7 +192,7 @@ check_calibration() {
 
     if [ "$all_calib_ok" = false ]; then
         echo -e "\n${YELLOW}请先运行校准脚本：${NC}"
-        echo "  ./self_scripts/calibrate_dual_so101.sh"
+        echo "  ./self_scripts/so101_bimanual/01_calibrate.sh"
         exit 1
     fi
 

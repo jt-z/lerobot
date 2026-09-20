@@ -1,7 +1,7 @@
 """对齐左右臂 action_diag CSV，按时间绘制各关节轨迹（goal / sent / present）。
 
 用法：
-    uv run python self_scripts/inference/plot_action_diag_aligned.py \
+    uv run python self_scripts/tools/plot_action_diag_aligned.py \
         [left_csv] [right_csv] [--save path.png]
 
 说明：
@@ -18,8 +18,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-DEFAULT_LEFT = Path(__file__).parent / "infer_logs" / "action_diag" / "action_diag_jt_follower_arm_left.csv"
-DEFAULT_RIGHT = Path(__file__).parent / "infer_logs" / "action_diag" / "action_diag_jt_follower_arm_right.csv"
+DEFAULT_LEFT = Path(__file__).parent.parent / "_logs" / "inference_logs" / "action_diag" / "action_diag_jt_follower_arm_left.csv"
+DEFAULT_RIGHT = Path(__file__).parent.parent / "_logs" / "inference_logs" / "action_diag" / "action_diag_jt_follower_arm_right.csv"
 
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 FIELDS = ["goal_pos", "sent_pos", "present_pos"]

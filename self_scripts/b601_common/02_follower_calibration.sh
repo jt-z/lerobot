@@ -4,7 +4,7 @@
 # 说明：B601-RS 是 RobStride 电机，必须用 Seeed 官方 seeed_b601_rs_follower
 #       （lerobot 自带 rebot_b601_follower 只支持 Damiao 电机，即 B601-DM，用在本机报 ensure_mode 失败）
 # 依赖：lerobot conda 环境（含 lerobot-robot-seeed-b601 包，脚本会自动尝试激活）
-# 用法：bash 02_follower_calibration.sh
+# 用法：bash self_scripts/b601_common/02_follower_calibration.sh
 #
 # ⚠️ 安全注意（从臂较大较重）：
 #   - 校准过程不会驱动电机，电机保持失能状态，可手动推动

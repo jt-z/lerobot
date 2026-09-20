@@ -2,7 +2,7 @@
 # B601 主臂（StarArm102 / reBot Arm 102）关节校准脚本
 # 功能：将主臂摆到零位后，逐个舵机记录零位（unlock + set_origin_point）
 # 依赖：lerobot conda 环境（脚本会自动尝试激活）
-# 用法：bash 01_关节校准.sh
+# 用法：bash self_scripts/b601_common/01_leader_calibration.sh
 #
 # 校准前注意：
 #   - 主臂 USB 串口需存在（默认 /dev/ttyUSB0，CH340 7523 无序列号）

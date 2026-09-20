@@ -18,10 +18,10 @@ set -e  # 遇到错误立即退出
 
 # ==================== 命令行参数 ====================
 # --resume 模式：继续录制已存在的数据集
-# 用法：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_<时间戳> [追加集数]
+# 用法：bash self_scripts/so101_bimanual/03_collect_make_coffee.sh --resume hellozjt/coffee_cup_button_<时间戳> [追加集数]
 # 注意：必须传入完整的 repo_id（带时间戳），因为每次新建数据集时框架会自动加时间戳后缀。
 #       第 3 个参数可选，指定本次追加的 episode 数（默认 $NUM_EPISODES）。
-#       示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220 100
+#       示例：bash self_scripts/so101_bimanual/03_collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220 100
 RESUME_MODE=false
 RESUME_REPO_ID=""
 NUM_EPISODES_OVERRIDE=""
@@ -33,8 +33,8 @@ if [ "$1" == "--resume" ]; then
     echo "   可用会话："
     ls -d "$HOME/.cache/huggingface/lerobot/hellozjt/coffee_cup_button_"* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
-    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220"
-    echo "   示例：bash collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220 100  # 追加100集"
+    echo "   示例：bash self_scripts/so101_bimanual/03_collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220"
+    echo "   示例：bash self_scripts/so101_bimanual/03_collect_make_coffee.sh --resume hellozjt/coffee_cup_button_20260826_232220 100  # 追加100集"
     exit 1
   fi
   RESUME_REPO_ID="$2"
@@ -48,7 +48,7 @@ echo "=========================================="
 echo ""
 
 # ==================== 硬件配置 ====================
-# 端口映射（2026-08-26 实测，与 teleoperate_dual_so101.sh 一致）：
+# 端口映射（2026-08-26 实测，与 self_scripts/so101_bimanual/02_teleoperate.sh 一致）：
 #   左从臂 = USB 序列号 5C82108837
 #   右从臂 = USB 序列号 5B61034841
 #   左主臂 = USB 序列号 5C82106862（已对调修正）
@@ -60,7 +60,7 @@ LEFT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C82106862-if00"
 RIGHT_LEADER_PORT="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034865-if00"
 
 # ==================== 摄像头配置 ====================
-# 摄像头映射（2026-08-26 实测，与 teleoperate_dual_so101.sh 一致）：
+# 摄像头映射（2026-08-26 实测，与 self_scripts/so101_bimanual/02_teleoperate.sh 一致）：
 #   左臂手部 = icSpring 无序列号
 #   左臂顶部 = icSpring 202404160005
 #   右臂手部 = JYU2C-2083 2607060
@@ -309,7 +309,7 @@ fi
 echo ""
 echo "💡 提示："
 echo "  如果录制过程中断，可以使用以下命令续录："
-echo "  ./collect_make_coffee.sh --resume $DATASET_NAME"
+echo "  ./self_scripts/so101_bimanual/03_collect_make_coffee.sh --resume $DATASET_NAME"
 echo ""
 echo "下一步："
 echo "  1. 访问上述链接查看数据集"

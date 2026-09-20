@@ -2,7 +2,7 @@
 # 单 B601-RS 单臂 X-VLA 推理（lerobot-rollout + sync）
 # 任务：单臂端起纸杯放上咖啡机托盘并按下按钮（与采集/微调数据集的任务文本一致）
 #
-# 前置：先用 self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh
+# 前置：先用 self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh
 #       在单臂 B601 数据上完成 Phase II 微调，得到 MODEL_PATH。
 #       xvla-base 本体无法直接控制 B601（没见过 Seeed/B601 域，且默认输出 20 维双臂末端位姿）。
 #
@@ -56,10 +56,10 @@ NUM_DENOISING_STEPS=""
 # ==================== 硬件配置 ====================
 # 单 B601-RS 从臂 = can0（SocketCAN，1Mbps 经典 CAN）
 B601_FOLLOWER_PORT="can0"
-# 从臂校准 id（须与采集时一致 = tool/05_b601_record.sh 的 FOLLOWER_ID）
+# 从臂校准 id（须与采集时一致 = self_scripts/b601_single/02_record.sh 的 FOLLOWER_ID）
 FOLLOWER_ID="follower"
 
-# 从臂方向修正：必须与采集（05_b601_record.sh 的 B601_JOINT_DIRECTIONS）完全一致，全 -1.0
+# 从臂方向修正：必须与采集（self_scripts/b601_single/02_record.sh 的 B601_JOINT_DIRECTIONS）完全一致，全 -1.0
 # 原因：seeed_b601_rs_follower.send_action 对每个关节先乘 joint_directions（缺失关节默认 0.0
 #       会把目标裁到 0 不动），且推理动作与训练动作必须同坐标系。
 B601_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
@@ -68,7 +68,7 @@ B601_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.
 MAX_RELATIVE_TARGET=30.0
 
 # ==================== 摄像头配置 ====================
-# 3 路相机（与 05_b601_record.sh 采集一致，相机 key 无 left_/right_ 前缀）：
+# 3 路相机（与 self_scripts/b601_single/02_record.sh 采集一致，相机 key 无 left_/right_ 前缀）：
 #   hand = JYU2C 2608076（腕部）、front = JYU2C 2607031、top = JYU2C 2607060（顶部）
 CAMERAS='{
   hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
@@ -100,7 +100,7 @@ fi
 echo "1. 检查模型权重..."
 if [ -z "$MODEL_PATH" ]; then
   echo "❌ MODEL_PATH 为空：X-VLA 微调权重尚未就位。"
-  echo "   请先运行 self_scripts/single_B601_make_coffee/xvla/train_xvla_single_b601.sh，"
+  echo "   请先运行 self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh，"
   echo "   再把 <OUTPUT_DIR>/checkpoints/<step>/pretrained_model 路径填到本脚本顶部 MODEL_PATH。"
   exit 1
 fi
@@ -145,7 +145,7 @@ if [ -f "$CALIB_FILE" ]; then
   echo "✅ $CALIB_FILE"
 else
   echo "❌ 缺失校准文件：$CALIB_FILE"
-  echo "   请先运行 tool/02_follower_calibration.sh"
+  echo "   请先运行 self_scripts/b601_common/02_follower_calibration.sh"
   exit 1
 fi
 
@@ -210,7 +210,7 @@ export HF_HUB_CACHE="$XVLA_CACHE_DIR"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
-LOG_DIR="./infer_logs"
+LOG_DIR="$HOME/LX/pai0/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_single_b601_xvla_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"
