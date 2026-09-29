@@ -101,7 +101,7 @@ DAGGER_REPO_ID="hellozjt/rollout_b601_make_coffee_dagger"
 # 想继续往里追加 episode：同一 repo_id/root，在命令上加 --resume=true
 DAGGER_ROOT="$HOME/LX/pai0/b601_data/rollout_b601_make_coffee_dagger"
 
-# 任务描述须与采集/训练时（05_b601_record.sh / 训练数据 meta）完全一致
+# 任务描述须与采集/训练时（self_scripts/b601_single/02_record.sh / 训练数据 meta）完全一致
 TASK_DESCRIPTION="Pick up the paper cup, place it on the silver tray of the coffee machine, pick up the cube, press the button with the cube (red light on), wait about 4 seconds, release the button (red light off), put the cube on the table first, then move the cup from the coffee machine to the table"
 
 FPS=30  # 必须与训练数据集 fps（30Hz）一致
