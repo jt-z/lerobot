@@ -8,8 +8,10 @@
 #   - run_inference_ACT.sh：单臂 B601 ACT 纯推理脚本（检查项/日志/参数风格，本脚本的模板）
 #   - so101_bimanual/inference/old_dataset/run_inference_cap_pen_smolvla.sh：SmolVLA 推理脚本（num_steps 用法、rtc 后端来源）
 # 机器人类型：seeed_b601_rs_follower（单臂官方类型，见 lerobot_robot_seeed_b601 包）
-# 模型权重：/home/kf/dev/lerobot/model_weights/220_new_datasets_smolvla_model/80k_pretrained_model（80000 步 SmolVLA，7 关节 = 单臂）
-#   训练配置要点（80k_pretrained_model/{config,train_config}.json）：
+# 模型权重：/home/kf/LX/pai0/smolvla_b601_20260910_164106_20260924/checkpoints/090000/pretrained_model（90000 步 SmolVLA，7 关节 = 单臂）
+#   来源：ubuntu-232（8x3090 训练机）/home/ksa/lerobot/self_scripts/output_lerobot_train/smolvla_b601_20260910_164106_20260924/checkpoints/090000
+#         2026-09-30 经 LAN 同步到本机（12 个文件 / 1.5G，双端 sha256 全一致；含 pretrained_model 与 training_state）
+#   训练配置要点（090000/pretrained_model/{config,train_config}.json）：
 #     - type=smolvla，chunk_size=50，n_action_steps=50，num_steps=10（flow matching 去噪步数）
 #     - 输入：observation.state(7) + observation.images.hand/front/top（3x480x640），语言指令 = 上面的 task
 #     - 输出：action(7)，STATE/ACTION 均 MEAN_STD 归一化（VISUAL=IDENTITY）
@@ -43,13 +45,14 @@ echo "✅ lerobot-rollout 可用"
 echo ""
 
 echo "=========================================="
-echo "单臂推理（SmolVLA 80k）- B601-RS（make coffee / base 纯推理）"
+echo "单臂推理（SmolVLA 90k）- B601-RS（make coffee / base 纯推理）"
 echo "=========================================="
 echo ""
 
 # ==================== 模型配置 ====================
-# SmolVLA 80k 权重（pretrained_model 目录，与 ACT 同一数据集 b601_20260910_164106 训练）
-MODEL_PATH="/home/kf/dev/lerobot/model_weights/220_new_datasets_smolvla_model/80k_pretrained_model"
+# SmolVLA 90k 权重（pretrained_model 目录，与 ACT 同一数据集 b601_20260910_164106 训练）
+# 如需回退到旧权重：/home/kf/dev/lerobot/model_weights/220_new_datasets_smolvla_model/80k_pretrained_model
+MODEL_PATH="/home/kf/LX/pai0/smolvla_b601_20260910_164106_20260924/checkpoints/090000/pretrained_model"
 
 # VLM 主干（SmolVLM2-500M-Video-Instruct）本地目录
 # 本机无外网：模型 config.json 里存的是 Hub id "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"，
@@ -193,7 +196,7 @@ fi
 # ==================== 推理参数总览 ====================
 echo ""
 echo "=========================================="
-echo "推理参数总览（SmolVLA 80k）"
+echo "推理参数总览（SmolVLA 90k）"
 echo "=========================================="
 echo "模型路径：$MODEL_PATH"
 echo "VLM 主干：$VLM_PATH（本地快照，不走 huggingface.co）"
@@ -227,7 +230,7 @@ read -p "确认 B601 从臂（can0）处于零位（夹爪闭合）、周边安�
 
 # ==================== 开始推理 ====================
 echo ""
-echo "🚀 开始单臂模型推理（SmolVLA 80k）..."
+echo "🚀 开始单臂模型推理（SmolVLA 90k）..."
 echo ""
 
 # Rerun 缓冲/内存（解决 gRPC transport error 与 1000 帧限制）
@@ -244,7 +247,7 @@ export TRANSFORMERS_OFFLINE=1
 
 LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/inference_b601_make_coffee_smolvla_80k_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="$LOG_DIR/inference_b601_make_coffee_smolvla_90k_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"
 echo ""
 
@@ -288,7 +291,7 @@ fi
 # ==================== 推理完成 ====================
 echo ""
 echo "=========================================="
-echo "✅ 单臂推理结束（SmolVLA 80k / base 模式）"
+echo "✅ 单臂推理结束（SmolVLA 90k / base 模式）"
 echo "=========================================="
 echo "本次未保存任何推理数据（base 策略不录制、不落盘）。"
 echo "完整日志：$LOG_FILE"
