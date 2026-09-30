@@ -33,6 +33,7 @@
 # bash self_scripts/b601_single/inference/run_inference_smolvla.sh    # 单臂 SmolVLA 推理
 # bash self_scripts/b601_single/inference/pretrained_models/run_inference_single_b601_make_coffee_xvla.sh  # 单臂 X-VLA 推理
 # bash self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh [session 名]   # 单臂 X-VLA 微调
+# bash self_scripts/b601_single/train/smolvla/start_train_smolvla_v2.sh [--resume|--dry-run|--skip-data-check]  # 单臂 SmolVLA 训练（含数据校验/GPU 健康检查/按 pass 反算 steps；bench/verify_dataset.py + datastet_notes 配套）
 #
 # ========================= b601_so101_bimanual =======================
 # bash self_scripts/b601_so101_bimanual/01_teleop_test.sh     # 异构双臂遥操作测试
@@ -52,6 +53,8 @@
 # bash self_scripts/so101_bimanual/01_calibrate.sh            # SO-101 双臂校准
 # bash self_scripts/so101_bimanual/02_teleoperate.sh          # SO-101 双臂遥操作
 # bash self_scripts/so101_bimanual/03_collect_make_coffee.sh [--resume <repo_id> [追加集数]]   # 双臂采集
+# bash self_scripts/so101_bimanual/train/start_train_act.sh             # 双臂 make_coffee ACT 训练
+# bash self_scripts/so101_bimanual/train/start_train_pi05.sh            # 双臂 cap_pen PI05 LoRA 微调（configs/pi05_train_config_20000steps.json）
 # bash self_scripts/so101_bimanual/inference/run_inference_make_coffee_ACT.sh       # 新数据集 ACT 推理
 # bash self_scripts/so101_bimanual/inference/run_inference_make_coffee_smolvla.sh   # 新数据集 SmolVLA 推理
 # self_scripts/so101_bimanual/inference/old_dataset/          # 老数据集（笔帽盖笔）推理：
@@ -61,3 +64,5 @@
 # python self_scripts/tools/act_feature_viz.py                # ACT 输入/输出特征可视化
 # python self_scripts/tools/action_trace.py                   # 推理动作追踪（推理脚本内部调用）
 # python self_scripts/tools/plot_action_diag_aligned.py       # 动作对齐诊断图（读 _logs/inference_logs/）
+# python self_scripts/tools/check_dataset_validity.py         # 检查数据集 NaN/Inf/极端值（改脚本顶部的 dataset_repo）
+# python self_scripts/tools/convert_to_video_format.py        # image 格式数据集 → video 格式（约缩小 6 倍；改脚本顶部配置）
