@@ -449,7 +449,7 @@ def main() -> None:
 
     os.makedirs(OUT_DIR, exist_ok=True)
     paths = ensure_ref(args.ref_dataset, args.cams, args.ref_episode, args.rebuild_ref)
-    print("[ref] 参考图：" + "  ".join(f"{c}={os.path.relpath(p, PAI0)}" for c, p in paths.items()))
+    print("[ref] 参考图：" + "  ".join(f"{c}={os.path.relpath(p, LOG_ROOT)}" for c, p in paths.items()))
     if args.export_ref:
         return
 

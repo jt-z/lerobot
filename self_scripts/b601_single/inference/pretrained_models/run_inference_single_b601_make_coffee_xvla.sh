@@ -210,7 +210,7 @@ export HF_HUB_CACHE="$XVLA_CACHE_DIR"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_single_b601_xvla_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

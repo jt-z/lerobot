@@ -183,7 +183,7 @@ echo ""
 echo "🚀 开始kfinfer episode $EPISODE ..."
 echo ""
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/replay_b601_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

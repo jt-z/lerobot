@@ -242,7 +242,7 @@ echo ""
 export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/record_b601_so101_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志：$LOG_FILE"

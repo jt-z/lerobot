@@ -126,7 +126,7 @@ echo "🚀 开始遥操作（单进程异构双臂）..."
 echo ""
 
 # ==================== 日志 ====================
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/teleop_bimanual_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

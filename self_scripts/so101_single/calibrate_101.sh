@@ -189,7 +189,7 @@ echo ""
 read -p "准备就绪，按 ENTER 开始校准，Ctrl+C 取消..." dummy
 
 # ==================== 日志 ====================
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/calibrate_101_$(date +%Y%m%d_%H%M%S).log"
 echo ""

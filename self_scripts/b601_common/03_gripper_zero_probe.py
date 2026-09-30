@@ -14,9 +14,9 @@
   阶段2（按提示断开 48V 电源重启后，夹爪仍停留在 150° 位置时执行）：
       python self_scripts/b601_common/03_gripper_zero_probe.py --phase 2
 
-每个读数都会追加到 CSV（默认 ~/LX/pai0/logs/gripper_zero_probe.csv），用于跨断电对比；
+每个读数都会追加到 CSV（默认 ~/dev/lerobot/self_scripts/_logs/gripper_zero_probe.csv），用于跨断电对比；
 脚本的完整交互输出会同时 tee 到一份带时间戳的运行日志
-（默认 ~/LX/pai0/logs/gripper_zero_probe_run_<时间戳>.log），方便事后复盘。
+（默认 ~/dev/lerobot/self_scripts/_logs/gripper_zero_probe_run_<时间戳>.log），方便事后复盘。
 
 结果判读：
   - 阶段2 的 baseline_raw（上电后、未使能时读到）若 ≈0 → 上电即清零/零点持久在 0，
@@ -40,7 +40,7 @@ GRIPPER_SEND_ID = 0x07
 GRIPPER_RECV_ID = 0xFD
 GRIPPER_MODEL = "rs-00"
 
-LOG_PATH = os.path.expanduser("~/LX/pai0/logs/gripper_zero_probe.csv")
+LOG_PATH = os.path.expanduser("~/dev/lerobot/self_scripts/_logs/gripper_zero_probe.csv")
 
 
 class _Tee:
@@ -105,13 +105,13 @@ def main() -> None:
     parser.add_argument("--channel", default="can0")
     parser.add_argument("--csv", default=LOG_PATH)
     parser.add_argument("--log", default=None,
-                        help="详细运行日志路径（默认 ~/LX/pai0/logs/gripper_zero_probe_run_<时间戳>.log）")
+                        help="详细运行日志路径（默认 ~/dev/lerobot/self_scripts/_logs/gripper_zero_probe_run_<时间戳>.log）")
     args = parser.parse_args()
     phase = args.phase
     LOG_PATH = os.path.expanduser(args.csv)
 
     run_log = args.log or os.path.expanduser(
-        f"~/LX/pai0/logs/gripper_zero_probe_run_{time.strftime('%Y%m%d_%H%M%S')}.log"
+        f"~/dev/lerobot/self_scripts/_logs/gripper_zero_probe_run_{time.strftime('%Y%m%d_%H%M%S')}.log"
     )
     os.makedirs(os.path.dirname(run_log), exist_ok=True)
     _log_fh = open(run_log, "w", encoding="utf-8")
