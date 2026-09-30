@@ -95,7 +95,7 @@ ACT_VIZ_BLUEPRINT=1   # 1 = 补发含 act_viz 视图的 Rerun blueprint（会覆
 
 # ---- 离线 MP4（默认开启，跑完看一个文件即可，和 Rerun 是否可用无关）----
 ACT_VIZ_MP4=1         # 1 = 每帧同时写 MP4；0 = 只在线看
-ACT_VIZ_MP4_DIR=""    # 输出目录；留空 = self_scripts/tools/logs/act_viz_<启动时间戳>/
+ACT_VIZ_MP4_DIR=""    # 输出目录；留空 = self_scripts/_logs/act_viz_<启动时间戳>/
 ACT_VIZ_MP4_MODE=tiled  # tiled（默认，hand/front/top 横拼成 1920x480 一个文件）| per_cam | both
 ACT_VIZ_MP4_CRF=23    # x264 质量（越小越清晰、文件越大）
 # 帧率自动取 --fps/(EVERY_N×interpolation_multiplier)，保证视频时长=真实时长。
@@ -232,7 +232,7 @@ if [ "$ACT_VIZ" = "1" ]; then
     echo "ACT 分析视图：❌ 关闭（ACT_VIZ_ANALYSIS=0）"
   fi
   if [ "$ACT_VIZ_MP4" = "1" ]; then
-    echo "ACT 注意力 MP4：✅ 模式=${ACT_VIZ_MP4_MODE}，crf=${ACT_VIZ_MP4_CRF}，输出=${ACT_VIZ_MP4_DIR:-self_scripts/tools/logs/act_viz_<时间戳>/}"
+    echo "ACT 注意力 MP4：✅ 模式=${ACT_VIZ_MP4_MODE}，crf=${ACT_VIZ_MP4_CRF}，输出=${ACT_VIZ_MP4_DIR:-self_scripts/_logs/act_viz_<时间戳>/}"
     if [ "$ACT_VIZ_ANALYSIS" = "1" ]; then
       echo "                   外加 act_analysis_heads / _timeline / _selfattn 三个分析视频（低帧率）"
     fi

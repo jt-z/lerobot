@@ -54,7 +54,7 @@
     ACT_VIZ_BLUEPRINT   1（默认）= 补发包含 act_viz 视图的 Rerun blueprint；0 = 不动布局
     ACT_VIZ_ENTITY_ROOT Rerun 实体前缀（默认 act_viz）
     ACT_VIZ_MP4         1（默认）= 同时落 MP4；0 = 只在线看
-    ACT_VIZ_MP4_DIR     输出目录（默认 <本文件目录>/logs/act_viz_<时间戳>/）
+    ACT_VIZ_MP4_DIR     输出目录（默认 self_scripts/_logs/act_viz_<时间戳>/）
     ACT_VIZ_MP4_MODE    tiled（默认，三路横拼一个文件）| per_cam（每路一个文件）| both
     ACT_VIZ_MP4_CRF     x264 质量，越小越清晰越大（默认 23）
     ACTION_TRACE        1 = 顺带装上 action_trace.py 的补丁（同一入口同时拿到动作追踪）
@@ -246,10 +246,13 @@ def _mp4_fps_per(ticks: int) -> float:
 
 
 def _mp4_out_dir() -> str:
-    """输出目录（默认 <本文件目录>/logs/act_viz_<启动时间戳>/），懒创建并复用。"""
+    """输出目录（默认 self_scripts/_logs/act_viz_<启动时间戳>/），懒创建并复用。"""
     global _mp4_dir
     if not _mp4_dir:
-        _mp4_dir = MP4_DIR or os.path.join(_HERE, "logs", f"act_viz_{time.strftime('%Y%m%d_%H%M%S')}")
+        # 与本文件所在 tools/ 同级的 _logs/，和其他脚本的日志集中在一处（该目录已 gitignore）
+        _mp4_dir = MP4_DIR or os.path.join(
+            os.path.dirname(_HERE), "_logs", f"act_viz_{time.strftime('%Y%m%d_%H%M%S')}"
+        )
         os.makedirs(_mp4_dir, exist_ok=True)
     return _mp4_dir
 

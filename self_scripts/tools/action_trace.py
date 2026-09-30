@@ -4,7 +4,7 @@
 用法与 lerobot-rollout 完全一致，只是把命令换成：
     python action_trace.py --strategy.type=base --policy.path=... ...
 
-逐个控制 tick 记录三组数值到日志（默认 <本文件目录>/action_test.log，
+逐个控制 tick 记录三组数值到日志（默认 self_scripts/_logs/action_test.log，
 可用环境变量 ACTION_TRACE_LOG 覆盖）：
 
     model : 策略输出 —— SyncInferenceEngine.get_action 返回的 tensor（已过 policy 的
@@ -33,7 +33,9 @@ import time
 from collections.abc import Mapping
 
 _TRACE_DIR = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
-LOG_PATH = os.environ.get("ACTION_TRACE_LOG") or os.path.join(_TRACE_DIR, "action_test.log")
+# 日志统一落在仓库内 self_scripts/_logs/（本文件所在 tools/ 的同级），便于集中留存
+_LOG_DIR = os.path.join(os.path.dirname(_TRACE_DIR), "_logs")
+LOG_PATH = os.environ.get("ACTION_TRACE_LOG") or os.path.join(_LOG_DIR, "action_test.log")
 
 # 关节顺序（用于对齐三组数值；顺序里没有的 key 追加在后面）
 PREFERRED_ORDER = [
