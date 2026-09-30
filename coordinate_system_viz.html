@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>机械臂关节坐标系 · roll/pitch/yaw</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#0e131b;color:#e8eef7;}
+  #info{position:absolute;top:12px;left:12px;max-width:330px;background:rgba(10,16,26,.82);padding:12px 14px;border-radius:10px;font-size:12.5px;line-height:1.9;z-index:20;border:1px solid rgba(255,255,255,.08);}
+  #info b{color:#ffd54f;}
+  #panel{position:absolute;top:12px;right:12px;background:rgba(10,16,26,.85);padding:12px 14px;border-radius:10px;font-size:12px;z-index:20;border:1px solid rgba(255,255,255,.08);width:280px;}
+  #panel .row{display:flex;align-items:center;margin:5px 0;}
+  #panel .nm{width:88px;color:#90caf9;white-space:nowrap;}
+  #panel .ax{width:52px;color:#7f8ea3;font-size:11px;}
+  #panel input[type=range]{flex:1;accent-color:#ffd54f;}
+  #panel button{width:100%;margin-top:8px;padding:6px 0;background:#1c2a3a;color:#ffd54f;border:1px solid rgba(255,213,79,.4);border-radius:6px;cursor:pointer;font-size:12px;}
+  #panel button:hover{background:#24364b;}
+  .legend{position:absolute;bottom:12px;left:12px;background:rgba(10,16,26,.8);padding:8px 12px;border-radius:8px;font-size:12px;z-index:20;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;margin-right:14px;}
+  .dot{width:12px;height:12px;border-radius:50%;display:inline-block;}
+  .lbl{background:rgba(10,16,26,.75);border:1px solid rgba(255,255,255,.15);color:#e8eef7;padding:2px 7px;border-radius:6px;font-size:12px;white-space:nowrap;pointer-events:none;}
+</style>
+</head>
+<body>
+<div id="info">
+  <b>机械臂 6DOF + 夹爪 关节链</b><br>
+  每个关节处绘制<b>局部坐标系</b>（X红 / Y绿 / Z蓝），随关节一起转动<br>
+  术语对照：<br>
+  · shoulder_pan / wrist_yaw → 绕 Z 旋转 ≈ <b>yaw</b><br>
+  · shoulder_lift / elbow_flex / wrist_flex → 绕 Y 旋转 ≈ <b>pitch</b><br>
+  · wrist_roll → 绕 X 旋转 ≈ <b>roll</b><br>
+  左键拖拽旋转视角 · 滚轮缩放 · 右侧滑杆调节关节角
+</div>
+<div id="panel">
+  <div class="row"><span class="nm">shoulder_pan</span><span class="ax">绕Z</span><input type="range" id="j0" min="-120" max="120" value="0"></div>
+  <div class="row"><span class="nm">shoulder_lift</span><span class="ax">绕Y</span><input type="range" id="j1" min="-90" max="90" value="20"></div>
+  <div class="row"><span class="nm">elbow_flex</span><span class="ax">绕Y</span><input type="range" id="j2" min="-140" max="140" value="-35"></div>
+  <div class="row"><span class="nm">wrist_flex</span><span class="ax">绕Y</span><input type="range" id="j3" min="-90" max="90" value="0"></div>
+  <div class="row"><span class="nm">wrist_yaw</span><span class="ax">绕Z</span><input type="range" id="j4" min="-90" max="90" value="0"></div>
+  <div class="row"><span class="nm">wrist_roll</span><span class="ax">绕X</span><input type="range" id="j5" min="-90" max="90" value="0"></div>
+  <div class="row"><span class="nm">gripper</span><span class="ax">开合</span><input type="range" id="j6" min="0" max="100" value="30"></div>
+  <button id="autoBtn">▶ 自动演示</button>
+</div>
+<div class="legend">
+  <span><span class="dot" style="background:#f44336"></span>X · roll 轴</span>
+  <span><span class="dot" style="background:#4caf50"></span>Y · pitch 轴</span>
+  <span><span class="dot" style="background:#2196f3"></span>Z · yaw 轴</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+const D = THREE.MathUtils.degToRad;
+
+/* ---------- 基础场景 ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e131b);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(7, 4.5, 9);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+labelRenderer.domElement.style.position = "absolute";
+labelRenderer.domElement.style.top = "0";
+labelRenderer.domElement.style.pointerEvents = "none";
+document.body.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(1.2, 1.6, 0);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 1.0));
+const dl = new THREE.DirectionalLight(0xffffff, 1.2);
+dl.position.set(4, 8, 5);
+scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0x88aaff, 0.4);
+dl2.position.set(-4, 3, -5);
+scene.add(dl2);
+
+const grid = new THREE.GridHelper(12, 24, 0x2a3a55, 0x1b2738);
+scene.add(grid);
+
+/* ---------- 小工具 ---------- */
+const LINK = new THREE.MeshStandardMaterial({ color: 0x3f6a9e, roughness: 0.45, metalness: 0.35 });
+const LINK_DARK = new THREE.MeshStandardMaterial({ color: 0x2b4a70, roughness: 0.5, metalness: 0.3 });
+const JOINT = new THREE.MeshStandardMaterial({ color: 0xffb74d, roughness: 0.35, metalness: 0.5 });
+const GRIP = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.5, metalness: 0.3 });
+
+function makeLink(len, mat = LINK) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.15, 0.15), mat);
+  m.position.x = len / 2;
+  return m;
+}
+function makeJoint(r = 0.16) {
+  return new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), JOINT);
+}
+function axesHelper(size = 0.38) {
+  return new THREE.AxesHelper(size);
+}
+function makeLabel(text, color = "#ffd54f") {
+  const div = document.createElement("div");
+  div.className = "lbl";
+  div.textContent = text;
+  div.style.color = color;
+  div.style.borderColor = color;
+  return new CSS2DObject(div);
+}
+function arc(group, axis, color, radius = 0.55, span = 1.1) {
+  const pts = [];
+  const N = 28;
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * span;
+    if (axis === "y") pts.push(new THREE.Vector3(Math.cos(t) * radius, 0, Math.sin(t) * radius));
+    else if (axis === "z") pts.push(new THREE.Vector3(Math.cos(t) * radius, Math.sin(t) * radius, 0));
+    else pts.push(new THREE.Vector3(0, Math.cos(t) * radius, Math.sin(t) * radius));
+  }
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color })
+  );
+  group.add(line);
+}
+
+/* ---------- 组装机械臂 ---------- */
+const root = new THREE.Group();
+scene.add(root);
+
+// 底座
+const base = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.4, 1.0, 24), LINK_DARK);
+base.position.y = 0.5;
+root.add(base);
+
+// shoulder_pan (绕 Z)
+const pan = new THREE.Group();
+pan.position.y = 1.0;
+root.add(pan);
+pan.add(makeLink(1.2));
+pan.add(makeJoint());
+pan.add(axesHelper(0.45));
+{
+  const lb = makeLabel("shoulder_pan · 绕Z (yaw)", "#ffd54f");
+  lb.position.set(0.6, 0.55, 0);
+  pan.add(lb);
+}
+
+// shoulder_lift (绕 Y)
+const lift = new THREE.Group();
+lift.position.set(1.2, 0, 0);
+pan.add(lift);
+lift.add(makeLink(1.0));
+lift.add(makeJoint());
+lift.add(axesHelper(0.42));
+{
+  const lb = makeLabel("shoulder_lift · 绕Y (pitch)", "#ffd54f");
+  lb.position.set(0.5, 0.5, 0);
+  lift.add(lb);
+}
+
+// elbow_flex (绕 Y)
+const elbow = new THREE.Group();
+elbow.position.set(1.0, 0, 0);
+lift.add(elbow);
+elbow.add(makeLink(0.85));
+elbow.add(makeJoint());
+elbow.add(axesHelper(0.4));
+{
+  const lb = makeLabel("elbow_flex · 绕Y (pitch)", "#ffd54f");
+  lb.position.set(0.42, 0.46, 0);
+  elbow.add(lb);
+}
+
+// wrist_flex (绕 Y)
+const wflex = new THREE.Group();
+wflex.position.set(0.85, 0, 0);
+elbow.add(wflex);
+wflex.add(makeLink(0.4));
+wflex.add(makeJoint(0.13));
+wflex.add(axesHelper(0.38));
+arc(wflex, "y", 0x4caf50, 0.55, 1.1);
+{
+  const lb = makeLabel("wrist_flex · 绕Y (pitch)", "#81c784");
+  lb.position.set(0.2, 0.6, 0);
+  wflex.add(lb);
+}
+
+// wrist_yaw (绕 Z)
+const wyaw = new THREE.Group();
+wyaw.position.set(0.4, 0, 0);
+wflex.add(wyaw);
+wyaw.add(makeLink(0.3));
+wyaw.add(makeJoint(0.12));
+wyaw.add(axesHelper(0.36));
+arc(wyaw, "z", 0x2196f3, 0.55, 1.1);
+{
+  const lb = makeLabel("wrist_yaw · 绕Z (yaw)", "#64b5f6");
+  lb.position.set(0.15, 0.55, 0);
+  wyaw.add(lb);
+}
+
+// wrist_roll (绕 X)
+const wroll = new THREE.Group();
+wroll.position.set(0.3, 0, 0);
+wyaw.add(wroll);
+wroll.add(makeLink(0.25));
+wroll.add(makeJoint(0.11));
+wroll.add(axesHelper(0.34));
+arc(wroll, "x", 0xf44336, 0.55, 1.1);
+{
+  const lb = makeLabel("wrist_roll · 绕X (roll)", "#ef5350");
+  lb.position.set(0.12, 0.52, 0);
+  wroll.add(lb);
+}
+
+// 夹爪
+const gripper = new THREE.Group();
+gripper.position.set(0.25, 0, 0);
+wroll.add(gripper);
+const fingerL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.24), GRIP);
+fingerL.position.set(0.12, 0, -0.12);
+const fingerR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.24), GRIP);
+fingerR.position.set(-0.12, 0, -0.12);
+gripper.add(fingerL, fingerR);
+{
+  const lb = makeLabel("gripper · 夹爪", "#a1887f");
+  lb.position.set(0, 0.42, 0);
+  gripper.add(lb);
+}
+
+// 世界坐标系
+scene.add(new THREE.AxesHelper(1.2));
+
+/* ---------- 交互 ---------- */
+const sliders = [0, 1, 2, 3, 4, 5, 6].map((i) => document.getElementById("j" + i));
+const autoBtn = document.getElementById("autoBtn");
+let auto = false;
+
+function applyJoints(t = 0) {
+  if (auto) {
+    pan.rotation.z = D(30 * Math.sin(t * 0.6));
+    lift.rotation.y = D(15 + 30 * Math.sin(t * 0.8));
+    elbow.rotation.y = D(-35 - 30 * Math.sin(t * 0.7));
+    wflex.rotation.y = D(30 * Math.sin(t * 0.9));
+    wyaw.rotation.z = D(40 * Math.sin(t * 0.5));
+    wroll.rotation.x = D(60 * Math.sin(t * 0.6));
+  } else {
+    pan.rotation.z = D(+sliders[0].value);
+    lift.rotation.y = D(+sliders[1].value);
+    elbow.rotation.y = D(+sliders[2].value);
+    wflex.rotation.y = D(+sliders[3].value);
+    wyaw.rotation.z = D(+sliders[4].value);
+    wroll.rotation.x = D(+sliders[5].value);
+  }
+  const open = +sliders[6].value / 100;
+  fingerL.position.x = 0.12 + open * 0.35;
+  fingerR.position.x = -0.12 - open * 0.35;
+}
+sliders.forEach((s) => s.addEventListener("input", () => { auto = false; autoBtn.textContent = "▶ 自动演示"; }));
+autoBtn.addEventListener("click", () => {
+  auto = !auto;
+  autoBtn.textContent = auto ? "⏸ 暂停演示" : "▶ 自动演示";
+});
+
+/* ---------- 渲染循环 ---------- */
+function animate() {
+  requestAnimationFrame(animate);
+  applyJoints(performance.now() / 1000);
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+animate();
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  labelRenderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
