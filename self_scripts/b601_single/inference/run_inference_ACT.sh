@@ -8,7 +8,7 @@
 #   - run_inference_b601_so101_make_coffee_ACT.sh：异构双臂 ACT 推理脚本（历史文件，未随本次重组入库，本脚本据其改写）
 #   - self_scripts/b601_single/02_record.sh：硬件端口 / 相机 / fps / 方向修正 / 任务描述（单臂采集基准）
 # 机器人类型：seeed_b601_rs_follower（单臂官方类型，见 lerobot_robot_seeed_b601 包）
-# 模型权重：/home/kf/LX/pai0/50kact_b601（50000 步 ACT，7 关节 = 单臂）
+# 模型权重：/home/kf/dev/lerobot/model_weights/50kact_b601（50000 步 ACT，7 关节 = 单臂）
 #   训练配置要点（50kact_b601/pretrained_model/{config,train_config}.json）：
 #     - type=act，chunk_size=100，n_action_steps=100，无 temporal ensemble（单次前向解码）
 #     - 输入：observation.state(7) + observation.images.hand/front/top（3x480x640）
@@ -46,8 +46,8 @@ echo ""
 
 # ==================== 模型配置 ====================
 # 新数据集微调后的 ACT 权重（pretrained_model 目录）
-# MODEL_PATH="/home/kf/LX/pai0/100000/pretrained_model"
-MODEL_PATH="/home/kf/LX/pai0/180_new_datasets_act_model/100k_pretrained_model"
+# MODEL_PATH="/home/kf/dev/lerobot/model_weights/100000/pretrained_model"
+MODEL_PATH="/home/kf/dev/lerobot/model_weights/180_new_datasets_act_model/100k_pretrained_model"
 
 
 # ACT 单次前向解码，无 num_steps / num_inference_steps 参数，留空即可
@@ -63,7 +63,7 @@ NUM_STEPS_ARG=""
 #     |cmd|!=|sent| 标记与结尾统计）。0 = 直接用 lerobot-rollout，不记录。
 ACTION_TRACE=1
 ACTION_TRACE_WRAPPER="$(dirname "$(readlink -f "$0")")/../../tools/action_trace.py"
-ACTION_TRACE_LOG="$HOME/LX/pai0/action_test.log"
+ACTION_TRACE_LOG="$HOME/dev/lerobot/self_scripts/_logs/action_test.log"
 
 # ==================== ACT 内部注意力可视化 ====================
 # 1 = 用 act_feature_viz.py 包装 lerobot-rollout（运行时打补丁，不改 lerobot / ACT 源码）：
@@ -95,7 +95,7 @@ ACT_VIZ_BLUEPRINT=1   # 1 = 补发含 act_viz 视图的 Rerun blueprint（会覆
 
 # ---- 离线 MP4（默认开启，跑完看一个文件即可，和 Rerun 是否可用无关）----
 ACT_VIZ_MP4=1         # 1 = 每帧同时写 MP4；0 = 只在线看
-ACT_VIZ_MP4_DIR=""    # 输出目录；留空 = $HOME/LX/pai0/logs/act_viz_<启动时间戳>/
+ACT_VIZ_MP4_DIR=""    # 输出目录；留空 = self_scripts/tools/logs/act_viz_<启动时间戳>/
 ACT_VIZ_MP4_MODE=tiled  # tiled（默认，hand/front/top 横拼成 1920x480 一个文件）| per_cam | both
 ACT_VIZ_MP4_CRF=23    # x264 质量（越小越清晰、文件越大）
 # 帧率自动取 --fps/(EVERY_N×interpolation_multiplier)，保证视频时长=真实时长。
@@ -232,7 +232,7 @@ if [ "$ACT_VIZ" = "1" ]; then
     echo "ACT 分析视图：❌ 关闭（ACT_VIZ_ANALYSIS=0）"
   fi
   if [ "$ACT_VIZ_MP4" = "1" ]; then
-    echo "ACT 注意力 MP4：✅ 模式=${ACT_VIZ_MP4_MODE}，crf=${ACT_VIZ_MP4_CRF}，输出=${ACT_VIZ_MP4_DIR:-$HOME/LX/pai0/logs/act_viz_<时间戳>/}"
+    echo "ACT 注意力 MP4：✅ 模式=${ACT_VIZ_MP4_MODE}，crf=${ACT_VIZ_MP4_CRF}，输出=${ACT_VIZ_MP4_DIR:-self_scripts/tools/logs/act_viz_<时间戳>/}"
     if [ "$ACT_VIZ_ANALYSIS" = "1" ]; then
       echo "                   外加 act_analysis_heads / _timeline / _selfattn 三个分析视频（低帧率）"
     fi
@@ -257,7 +257,7 @@ echo ""
 export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_b601_make_coffee_act_50k_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

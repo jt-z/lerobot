@@ -64,7 +64,7 @@ export HF_HUB_CACHE="$HF_CACHE"
 DOWNLOAD_ASSETS=true
 
 # 训练输出目录（lerobot-train 要求 output_dir 不存在，否则报 FileExistsError）
-OUTPUT_DIR="$HOME/LX/pai0/xvla_model/${DATASET_NAME}_xvla_auto"
+OUTPUT_DIR="$HOME/dev/lerobot/model_weights/xvla_model/${DATASET_NAME}_xvla_auto"
 JOB_NAME="b601_single_xvla"
 
 # ==================== 超参 ====================
@@ -165,7 +165,7 @@ echo ""
 echo "🚀 开始 X-VLA 微调..."
 echo ""
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/train_xvla_single_b601_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志：$LOG_FILE"

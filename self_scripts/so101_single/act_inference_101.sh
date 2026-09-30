@@ -11,7 +11,7 @@
 #   - act_inference.sh：单臂 B601-RS ACT 推理脚本（检查项/日志/参数风格）
 #   - self_scripts/so101_single/record_101.sh：单臂 SO-101 采集脚本（端口 / 相机 / fps / 任务描述 / 校准 id）
 # 机器人类型：so101_follower（单臂 SO-101 从臂）
-# 模型权重：/home/kf/LX/pai0/020000/pretrained_model（20000 步 ACT）
+# 模型权重：/home/kf/dev/lerobot/model_weights/020000/pretrained_model（20000 步 ACT）
 #   训练配置要点（020000/pretrained_model/{config,train_config}.json）：
 #     - type=act，chunk_size=100，n_action_steps=100，无 temporal ensemble（单次前向解码）
 #     - 输入：observation.state(6) + observation.images.hand/front（2x480x640）
@@ -78,7 +78,7 @@ echo ""
 
 # ==================== 模型配置 ====================
 # 单臂 SO-101 的 ACT 权重（pretrained_model 目录，内含 config.json + model.safetensors）
-MODEL_PATH="${MODEL_PATH:-/home/kf/LX/pai0/045000/pretrained_model}"
+MODEL_PATH="${MODEL_PATH:-/home/kf/dev/lerobot/model_weights/045000/pretrained_model}"
 
 # ACT 单次前向解码，无 num_steps / num_inference_steps 参数，留空即可
 NUM_STEPS_ARG=""
@@ -284,7 +284,7 @@ echo ""
 export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_so101_act_20k_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

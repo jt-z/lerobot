@@ -10,7 +10,7 @@
 #   - self_scripts/so101_single/record_101.sh：单臂 SO-101 采集（端口 / 相机 / fps / 任务描述 / 校准 id）
 #   - pi0.5/pi05-so100_101/README.md：该权重的官方加载说明（相机槽位 / 归一化 / tokenizer）
 #
-# 模型：pi0.5（lerobot 策略，type=pi05），本地权重 /home/kf/LX/pai0/pi0.5/pi05-so100_101
+# 模型：pi0.5（lerobot 策略，type=pi05），本地权重 /home/kf/dev/lerobot/model_weights/pi0.5/pi05-so100_101
 #   - 训练数据：allenai/MolmoAct2-SO100_101-Dataset 那批 SO-100/101 混合数据（1209 个数据集、
 #     36877 集、1922 万帧）——和 MolmoAct2-SO100_101 是同一批异构数据，各家校准零点不同，
 #     README 明确写"actions use the original dataset units"，所以本机臂的零点口径不一定对得上
@@ -103,7 +103,7 @@ echo "=========================================="
 echo ""
 
 # ==================== 模型配置 ====================
-MODEL_PATH="${MODEL_PATH:-/home/kf/LX/pai0/pi0.5/pi05-so100_101}"
+MODEL_PATH="${MODEL_PATH:-/home/kf/dev/lerobot/model_weights/pi0.5/pi05-so100_101}"
 # 权重 config.json 里 text_tokenizer_name 指向训练机路径（/lustre/...），本机必须覆盖成权重自带的
 TOKENIZER_PATH="$MODEL_PATH/tokenizer/tokenizer.model"
 PATCH_PATH="$MODEL_PATH/code/lerobot.patch"
@@ -366,7 +366,7 @@ echo ""
 export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_so101_pi05_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

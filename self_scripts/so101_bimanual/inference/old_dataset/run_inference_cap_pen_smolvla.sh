@@ -41,9 +41,9 @@ RIGHT_CAMERAS='{
 # ==================== 模型配置 ====================
 # smolvla checkpoint 路径（4k 结构特殊：文件直接在目录下，无 pretrained_model 子目录）
 if [ "$CKPT" = "4k" ]; then
-  MODEL_PATH="/home/kf/LX/pai0/smol_vla/4k"
+  MODEL_PATH="/home/kf/dev/lerobot/model_weights/smol_vla/4k"
 else
-  MODEL_PATH="/home/kf/LX/pai0/smol_vla/${CKPT}/pretrained_model"
+  MODEL_PATH="/home/kf/dev/lerobot/model_weights/smol_vla/${CKPT}/pretrained_model"
 fi
 
 # smolvla 用 num_steps（flow matching 去噪步数）
@@ -112,7 +112,7 @@ export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
 # 推理日志文件
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_smolvla_${CKPT}_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

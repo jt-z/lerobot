@@ -54,7 +54,7 @@ RIGHT_CAMERAS='{
 # MODEL_PATH="/home/jt/dev/lerobot/output_lerobot_train/two_hand/smolvla/300k_checkpoint_pretrained_model"
 
 # pi0（本机训练，最优 checkpoint 005000）:
-# MODEL_PATH="/home/kf/LX/pai0/lerobot/outputs/train/pi0_date_lora/checkpoints/005000/pretrained_model"
+# MODEL_PATH="/home/kf/dev/lerobot/model_weights/pi0_date_lora/005000/pretrained_model"
 
 # pi05（本机 LoRA 微调 checkpoint 003000，基座权重在 model_weights/lerobot--pi05_base）:
 # MODEL_PATH="/home/kf/dev/lerobot/model_weights/PI05_3000/003000/pretrained_model"
@@ -145,7 +145,7 @@ export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
 # 推理日志文件（输出同时显示在终端并写入此文件，便于事后查看）
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

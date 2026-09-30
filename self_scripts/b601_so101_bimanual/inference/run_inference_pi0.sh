@@ -21,7 +21,7 @@ echo ""
 
 # ==================== 模型配置 ====================
 # 本机训练的 pi0 权重（pretrained_model 目录）
-MODEL_PATH="/home/kf/LX/pai0/020000_b601_pi0/pretrained_model"
+MODEL_PATH="/home/kf/dev/lerobot/model_weights/020000_b601_pi0/pretrained_model"
 
 # pi0 训练时用 10 步，RTC 已解决推理卡顿，保持 10 步保证动作质量
 NUM_STEPS_ARG="--policy.num_inference_steps=10"
@@ -157,7 +157,7 @@ echo ""
 export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_b601_so101_pi0_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

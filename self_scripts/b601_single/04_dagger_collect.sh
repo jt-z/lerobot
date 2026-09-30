@@ -63,7 +63,7 @@ echo ""
 # ==================== 模型配置 ====================
 # 用于自主执行的 ACT 权重（哪一版策略出错，就针对它做纠错扩充）
 # 100k step（8 卡 × batch 8 训练），与 inference/run_inference_ACT.sh 使用的权重一致
-MODEL_PATH="/home/kf/LX/pai0/100000/pretrained_model"
+MODEL_PATH="/home/kf/dev/lerobot/model_weights/100000/pretrained_model"
 
 # ACT 单次前向解码，无 num_steps / num_inference_steps 参数，留空即可
 NUM_STEPS_ARG=""
@@ -240,7 +240,7 @@ echo ""
 export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/dagger_b601_make_coffee_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"
@@ -360,6 +360,6 @@ echo "=========================================="
 #   python lerobot/src/lerobot/scripts/lerobot_train.py \
 #     --dataset.repo_id=b601_make_coffee_merged \
 #     --dataset.root=/home/kf/LX/pai0/b601_data/b601_make_coffee_merged \
-#     --policy.path=/home/kf/LX/pai0/50kact_b601/pretrained_model \
+#     --policy.path=/home/kf/dev/lerobot/model_weights/50kact_b601/pretrained_model \
 #     --output_dir=... --batch_size=... --steps=...
 # =============================================================================

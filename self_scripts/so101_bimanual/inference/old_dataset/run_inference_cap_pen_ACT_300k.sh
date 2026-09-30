@@ -46,7 +46,7 @@ RIGHT_CAMERAS='{
 
 # ==================== 模型配置 ====================
 # ACT 300k（本机训练）
-MODEL_PATH="/home/kf/LX/pai0/act_model_300k"
+MODEL_PATH="/home/kf/dev/lerobot/model_weights/act_model_300k"
 
 # ACT 单次前向解码，无 num_steps / num_inference_steps 参数，留空即可
 NUM_STEPS_ARG=""
@@ -130,7 +130,7 @@ export RERUN_FLUSH_NUM_BYTES=10000000
 export LEROBOT_RERUN_MEMORY_LIMIT="30%"
 
 # 推理日志文件（输出同时显示在终端并写入此文件，便于事后查看）
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/act_300k_inference_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"

@@ -8,13 +8,13 @@
 #   - run_inference_ACT.sh：单臂 B601 ACT 纯推理脚本（检查项/日志/参数风格，本脚本的模板）
 #   - so101_bimanual/inference/old_dataset/run_inference_cap_pen_smolvla.sh：SmolVLA 推理脚本（num_steps 用法、rtc 后端来源）
 # 机器人类型：seeed_b601_rs_follower（单臂官方类型，见 lerobot_robot_seeed_b601 包）
-# 模型权重：/home/kf/LX/pai0/220_new_datasets_smolvla_model/80k_pretrained_model（80000 步 SmolVLA，7 关节 = 单臂）
+# 模型权重：/home/kf/dev/lerobot/model_weights/220_new_datasets_smolvla_model/80k_pretrained_model（80000 步 SmolVLA，7 关节 = 单臂）
 #   训练配置要点（80k_pretrained_model/{config,train_config}.json）：
 #     - type=smolvla，chunk_size=50，n_action_steps=50，num_steps=10（flow matching 去噪步数）
 #     - 输入：observation.state(7) + observation.images.hand/front/top（3x480x640），语言指令 = 上面的 task
 #     - 输出：action(7)，STATE/ACTION 均 MEAN_STD 归一化（VISUAL=IDENTITY）
 #     - VLM 主干：config.json 里是 Hub id，本脚本用 --policy.vlm_model_name 覆盖成
-#       /home/kf/LX/pai0/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct 的本地快照（离线可跑）
+#       /home/kf/dev/lerobot/model_weights/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct 的本地快照（离线可跑）
 #     - 训练数据：b601_20260910_164106（30Hz，robot_type=seeed_b601_rs_follower）
 #       —— 与 180_new_datasets_act_model 用的数据集完全相同，故任务描述/相机/方向修正沿用 ACT 推理脚本
 # 需要把推理过程存成数据集时，改用带 --strategy.type=episodic + --dataset.* 的录制型脚本
@@ -49,7 +49,7 @@ echo ""
 
 # ==================== 模型配置 ====================
 # SmolVLA 80k 权重（pretrained_model 目录，与 ACT 同一数据集 b601_20260910_164106 训练）
-MODEL_PATH="/home/kf/LX/pai0/220_new_datasets_smolvla_model/80k_pretrained_model"
+MODEL_PATH="/home/kf/dev/lerobot/model_weights/220_new_datasets_smolvla_model/80k_pretrained_model"
 
 # VLM 主干（SmolVLM2-500M-Video-Instruct）本地目录
 # 本机无外网：模型 config.json 里存的是 Hub id "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"，
@@ -60,7 +60,7 @@ MODEL_PATH="/home/kf/LX/pai0/220_new_datasets_smolvla_model/80k_pretrained_model
 #   —— 推理时把它设为 HF_HUB_CACHE，Hub id 就能在离线状态下被解析到本地；
 #      这条很关键：模型自带的 policy_preprocessor.json 把 tokenizer_name 写死成 Hub id，
 #      而 processor pipeline 不吃 --policy.vlm_model_name 覆盖，只有靠缓存目录才能命中本地分词器。
-VLM_CACHE="/home/kf/LX/pai0"
+VLM_CACHE="/home/kf/dev/lerobot/model_weights"
 # VLM_PATH：上面的快照目录，同时用 --policy.vlm_model_name 显式指向它
 VLM_PATH="$VLM_CACHE/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct/snapshots/7b375e1b73b11138ff12fe22c8f2822d8fe03467"
 
@@ -85,8 +85,8 @@ INFERENCE_TYPE="rtc"
 #     |cmd|!=|sent| 标记与结尾统计）。0 = 直接用 lerobot-rollout，不记录。
 #     ⚠️ ACT 专用的注意力可视化（act_feature_viz.py）对 SmolVLA 不适用，本脚本不启用。
 ACTION_TRACE=1
-ACTION_TRACE_WRAPPER="$HOME/LX/pai0/action_trace.py"
-ACTION_TRACE_LOG="$HOME/LX/pai0/action_smolvla_test.log"
+ACTION_TRACE_WRAPPER="$(dirname "$(readlink -f "$0")")/../../tools/action_trace.py"
+ACTION_TRACE_LOG="$HOME/dev/lerobot/self_scripts/_logs/action_smolvla_test.log"
 
 # ==================== 硬件配置 ====================
 # B601 从臂 = can0（SocketCAN，PEAK PCAN-USB，1Mbps 经典 CAN）
@@ -242,7 +242,7 @@ export HF_HUB_CACHE="$VLM_CACHE"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
-LOG_DIR="$HOME/LX/pai0/logs"
+LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/inference_b601_make_coffee_smolvla_80k_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"
