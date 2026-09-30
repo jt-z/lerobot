@@ -5,6 +5,7 @@
 #   b601_common/           B601 通用：校准 / 串口 / 相机 / 夹爪 / 回放可视化（任何 B601 方案共用）
 #   b601_single/           单 B601-RS 臂（从臂 can0 + 主臂 StarArm102）
 #   b601_so101_bimanual/   B601-RS 左臂 + SO-101 右臂（异构双臂）
+#   so101_single/          单 SO-101 臂（从臂 + 主臂；黄香蕉分拣任务）
 #   so101_bimanual/        SO-101 + SO-101 双臂（含老数据集推理）
 #   tools/                 通用诊断/可视化工具
 #   notes/                 现象记录（延迟问题、端口号映射）
@@ -38,6 +39,14 @@
 # bash self_scripts/b601_so101_bimanual/02_record.sh          # 异构双臂采集（--resume 同单臂）
 # python self_scripts/b601_so101_bimanual/03_monitor_motors.py                # 电机状态监视
 # bash self_scripts/b601_so101_bimanual/inference/run_inference_pi0.sh        # 异构双臂 pi0 推理
+#
+# ============================ so101_single ===========================
+# bash self_scripts/so101_single/calibrate_101.sh [follower|leader]  # SO-101 单臂校准（默认两条臂都校准）
+# bash self_scripts/so101_single/teleop_101.sh                # SO-101 单臂遥操作（不录数据）
+# bash self_scripts/so101_single/record_101.sh                # SO-101 单臂采集（2 路 JYU2C；--resume 同单臂）
+# bash self_scripts/so101_single/act_inference_101.sh [base]  # SO-101 单臂 ACT 推理（默认边推理边录数据）
+# bash self_scripts/so101_single/pi05_inference_101.sh [direct|direct-check|save]   # SO-101 单臂 pi0.5 推理
+# python self_scripts/so101_single/pi05_direct_inference_101.py   # 上面 direct 后端的直接控制环（含 shoulder_lift 口径映射）
 #
 # ========================== so101_bimanual ===========================
 # bash self_scripts/so101_bimanual/01_calibrate.sh            # SO-101 双臂校准
