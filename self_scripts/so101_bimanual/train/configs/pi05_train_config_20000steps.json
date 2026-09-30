@@ -1,0 +1,62 @@
+{
+  "dataset": {
+    "repo_id": "hellozjt/cap_pen_and_put_into_holder",
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/cap_pen_and_put_into_holder",
+    "revision": "main",
+    "streaming": false
+  },
+  "policy": {
+    "type": "pi05",
+    "device": "cuda",
+    "dtype": "bfloat16",
+    "compile_model": false,
+    "gradient_checkpointing": true,
+    "freeze_vision_encoder": true,
+    "train_expert_only": false,
+    "push_to_hub": false,
+    "empty_cameras": 0,
+    "input_features": {
+      "observation.images.base_0_rgb": {
+        "type": "VISUAL",
+        "shape": [3, 224, 224]
+      },
+      "observation.images.left_wrist_0_rgb": {
+        "type": "VISUAL",
+        "shape": [3, 224, 224]
+      },
+      "observation.images.right_wrist_0_rgb": {
+        "type": "VISUAL",
+        "shape": [3, 224, 224]
+      },
+      "observation.state": {
+        "type": "STATE",
+        "shape": [32]
+      }
+    },
+    "normalization_mapping": {
+      "VISUAL": "IDENTITY",
+      "STATE": "QUANTILES",
+      "ACTION": "QUANTILES"
+    }
+  },
+  "rename_map": {
+    "observation.images.left_top": "observation.images.base_0_rgb",
+    "observation.images.left_hand": "observation.images.left_wrist_0_rgb",
+    "observation.images.right_hand": "observation.images.right_wrist_0_rgb"
+  },
+  "peft": {
+    "method_type": "LORA",
+    "r": 16,
+    "target_modules": null,
+    "full_training_modules": null
+  },
+  "output_dir": "output_lerobot_train/pi05_cap_pen_lora",
+  "job_name": "pi05_cap_pen_job_lora",
+  "steps": 20000, 
+  "batch_size": 8,
+  "log_freq": 10,
+  "save_freq": 2000,
+  "wandb": {
+    "enable": false
+  }
+}
