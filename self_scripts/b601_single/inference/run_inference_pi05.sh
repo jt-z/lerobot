@@ -131,6 +131,15 @@ CAMERAS='{
   top: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }'
 
+# ==================== 相机 key 重命名（robot → policy） ====================
+# pi05 基座把三路相机命名为 base_0_rgb / left_wrist_0_rgb / right_wrist_0_rgb，
+# 训练时即用这套名字（见 checkpoint 的 policy_preprocessor.json 里的
+# rename_observations_processor.rename_map），robot 侧 hand/front/top 必须先改名再喂给策略。
+# 不传 rename_map 时，rollout 预检（rollout/context.py 的视觉特征校验）会直接报
+# "Visual feature mismatch between policy and robot hardware" 并退出。
+# ⚠️ 映射关系必须与训练 checkpoint 里的 rename_map 完全一致，否则相机与策略输入错配。
+CAMERA_RENAME_MAP='{"observation.images.front": "observation.images.base_0_rgb", "observation.images.hand": "observation.images.left_wrist_0_rgb", "observation.images.top": "observation.images.right_wrist_0_rgb"}'
+
 # ==================== B601 方向修正 ====================
 # 必须与采集（self_scripts/b601_single/02_record.sh 的 B601_JOINT_DIRECTIONS）完全一致，全 -1.0。
 # 原因：seeed_b601_rs_follower.send_action 对每个关节先乘 joint_directions
@@ -300,6 +309,7 @@ else
 fi
 echo "推理频率：${FPS} Hz"
 echo "摄像头：hand / front / top（3 路）"
+echo "相机重命名：front→base_0_rgb  hand→left_wrist_0_rgb  top→right_wrist_0_rgb（与训练一致）"
 echo "B601 方向修正：全 -1.0（与采集一致）"
 echo "相对动作上限：未启用（不传 max_relative_target，默认不做相对裁剪）"
 if [ "$ACTION_TRACE" = "1" ]; then
@@ -345,7 +355,8 @@ echo ""
 #   - pi05：--policy.num_inference_steps 控制 flow matching 去噪步数（训练用 10）
 #   - 不传 --policy.vlm_model_name：pi05 没有这个字段，基座由 adapter_config.json 决定
 #   - B601：can0 + socketcan + gravity_compensation + joint_directions(全 -1.0)，与采集一致
-#   - 机器人 3 路相机输出 key（hand/front/top）与训练时一致，无需 rename_map
+#   - 机器人 3 路相机输出 key 为 hand/front/top，须用 --rename_map 改成策略侧的
+#     base_0_rgb/left_wrist_0_rgb/right_wrist_0_rgb（与训练一致，见 CAMERA_RENAME_MAP）
 #   - --fps 须 30（训练数据 30Hz）；--duration=0 表示不限时长（跑到 Ctrl+C）
 #   - ACTION_TRACE=1 时用 action_trace.py 包装（参数完全一致，只多一路动作记录）
 #   - 需要覆盖 RTC 参数时直接加 CLI，例如 --inference.rtc.execution_horizon=10、
@@ -368,6 +379,7 @@ fi
   --robot.gravity_compensation=true \
   --robot.joint_directions="$B601_JOINT_DIRECTIONS" \
   --robot.cameras="$CAMERAS" \
+  --rename_map="$CAMERA_RENAME_MAP" \
   --task="$TASK_DESCRIPTION" \
   --fps=$FPS \
   --duration=$DURATION \
