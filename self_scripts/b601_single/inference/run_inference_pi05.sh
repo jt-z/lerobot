@@ -38,8 +38,9 @@
 #     pi05 基座  lerobot--pi05_base/snapshots/master            （14.4 GB，config.json sha256 与 232 相同）
 #     PaliGemma 分词器 google--paligemma-3b-pt-224/snapshots/master
 #
-# 换 checkpoint：把 MODEL_PATH 的 030000 换成同 run 的其它步数即可（005000…150000，每个约 16 MB，
-#   在 232 的 checkpoints/ 下；注意新拷过来的同样要先跑上面那条 sed）。
+# 换 checkpoint：跑脚本时把步数当第一个参数传进去即可（同 run 的 checkpoints/<步数>/pretrained_model，
+#   005000…150000，每个约 16 MB）。本机目前有 030000 / 050000 / 100000 三份。
+#   注意新拷过来的同样要先跑上面那条 sed，否则本脚本的预检会拦下并打印该跑的命令。
 # 需要把推理过程存成数据集时，改用带 --strategy.type=episodic + --dataset.* 的录制型脚本
 #   （照 run_inference_pi0.sh 的写法，但 base 策略不能带任何 --dataset.* 参数）。
 # 创建日期：2026-10-08
@@ -67,14 +68,19 @@ echo "✅ lerobot-rollout 可用"
 echo ""
 
 echo "=========================================="
-echo "单臂推理（pi05 030000 / LoRA）- B601-RS（make coffee / base 纯推理）"
+echo "单臂推理（pi05 LoRA）- B601-RS（make coffee / base 纯推理）"
 echo "=========================================="
 echo ""
 
 # ==================== 模型配置 ====================
-# pi05 030000（LoRA adapter，与 SmolVLA/ACT 同一数据集 b601_20260910_164106 训练）
-# 换其它步数：改这里（同 run 的 checkpoints/<步数>/pretrained_model）
-MODEL_PATH="/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints/030000/pretrained_model"
+# pi05 LoRA adapter（与 SmolVLA/ACT 同一数据集 b601_20260910_164106 训练）
+# 要跑的步数 = 命令行第一个参数，默认 030000：
+#   ./run_inference_pi05.sh            # 030000（默认）
+#   ./run_inference_pi05.sh 050000     # 050000
+#   ./run_inference_pi05.sh 100000     # 100000
+STEP="${1:-030000}"
+CKPT_ROOT="/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints"
+MODEL_PATH="$CKPT_ROOT/$STEP/pretrained_model"
 
 # 加载该 checkpoint 需要的两个本机依赖（只用于预检；真正取路径是从 checkpoint 的 json 里读，
 # 见下面第 1b 步，避免脚本与 checkpoint 内容说法不一致）
@@ -293,8 +299,9 @@ fi
 # ==================== 推理参数总览 ====================
 echo ""
 echo "=========================================="
-echo "推理参数总览（pi05 030000 / LoRA）"
+echo "推理参数总览（pi05 / LoRA）"
 echo "=========================================="
+echo "训练步数：$STEP"
 echo "模型路径：$MODEL_PATH"
 echo "权重类型：LoRA adapter（r=16 / alpha=8），基座按 adapter_config.json 自动加载"
 echo "机器人类型：seeed_b601_rs_follower（单臂 B601-RS，can0）"
@@ -328,7 +335,7 @@ read -p "确认 B601 从臂（can0）处于零位（夹爪闭合）、周边安�
 
 # ==================== 开始推理 ====================
 echo ""
-echo "🚀 开始单臂模型推理（pi05 030000）..."
+echo "🚀 开始单臂模型推理（pi05 $STEP）..."
 echo ""
 
 # Rerun 缓冲/内存（解决 gRPC transport error 与 1000 帧限制）
@@ -344,7 +351,7 @@ export TRANSFORMERS_OFFLINE=1
 
 LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/inference_b601_make_coffee_pi05_030000_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="$LOG_DIR/inference_b601_make_coffee_pi05_${STEP}_$(date +%Y%m%d_%H%M%S).log"
 echo "📝 日志文件：$LOG_FILE"
 echo ""
 
@@ -390,7 +397,7 @@ fi
 # ==================== 推理完成 ====================
 echo ""
 echo "=========================================="
-echo "✅ 单臂推理结束（pi05 030000 / base 模式）"
+echo "✅ 单臂推理结束（pi05 $STEP / base 模式）"
 echo "=========================================="
 echo "本次未保存任何推理数据（base 策略不录制、不落盘）。"
 if [ "$ACTION_TRACE" = "1" ]; then
