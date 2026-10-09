@@ -1,0 +1,67 @@
+{
+  "dataset": {
+    "repo_id": "hellozjt/b601_20260910_164106_20260930",
+    "root": "/data/share/b601_20260910_164106_20260930",
+    "revision": "main",
+    "streaming": false
+  },
+  "policy": {
+    "type": "pi05",
+    "device": "cuda",
+    "dtype": "bfloat16",
+    "compile_model": false,
+    "gradient_checkpointing": true,
+    "freeze_vision_encoder": true,
+    "train_expert_only": false,
+    "push_to_hub": false,
+    "empty_cameras": 0,
+    "optimizer_lr": 2.5e-5,
+    "scheduler_warmup_steps": 1000,
+    "scheduler_decay_steps": 30000,
+    "scheduler_decay_lr": 2.5e-6,
+    "input_features": {
+      "observation.images.base_0_rgb": {
+        "type": "VISUAL",
+        "shape": [3, 224, 224]
+      },
+      "observation.images.left_wrist_0_rgb": {
+        "type": "VISUAL",
+        "shape": [3, 224, 224]
+      },
+      "observation.images.right_wrist_0_rgb": {
+        "type": "VISUAL",
+        "shape": [3, 224, 224]
+      },
+      "observation.state": {
+        "type": "STATE",
+        "shape": [32]
+      }
+    },
+    "normalization_mapping": {
+      "VISUAL": "IDENTITY",
+      "STATE": "QUANTILES",
+      "ACTION": "QUANTILES"
+    }
+  },
+  "rename_map": {
+    "observation.images.front": "observation.images.base_0_rgb",
+    "observation.images.hand": "observation.images.left_wrist_0_rgb",
+    "observation.images.top": "observation.images.right_wrist_0_rgb"
+  },
+  "peft": {
+    "method_type": "LORA",
+    "r": 16,
+    "target_modules": null,
+    "full_training_modules": null
+  },
+  "output_dir": "output_lerobot_train/pi05_b601_20260910_164106_20260930",
+  "job_name": "pi05_make_coffee_b601_rs_single_arm",
+  "steps": 150000,
+  "batch_size": 8,
+  "log_freq": 10,
+  "save_freq": 5000,
+  "num_workers": 4,
+  "wandb": {
+    "enable": false
+  }
+}
