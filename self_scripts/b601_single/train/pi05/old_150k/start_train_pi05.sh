@@ -84,9 +84,9 @@
 set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$(realpath "$0")")" && pwd)
-SELF_SCRIPTS_DIR=$(cd "$SCRIPT_DIR/../../.." && pwd)
+SELF_SCRIPTS_DIR=$(cd "$SCRIPT_DIR/../../../.." && pwd)   # 归档后多一层 old_150k/
 CONFIG="$SCRIPT_DIR/pi05_train_config.json"
-VERIFY=${VERIFY_SCRIPT:-"$SCRIPT_DIR/../smolvla/bench/verify_dataset.py"}
+VERIFY=${VERIFY_SCRIPT:-"$SCRIPT_DIR/../../smolvla/bench/verify_dataset.py"}
 
 PI05_BASE=${PI05_BASE:-/home/ksa/.cache/modelscope/models/lerobot--pi05_base/snapshots/master}
 QUIET_MINS=${QUIET_MINS:-5}
