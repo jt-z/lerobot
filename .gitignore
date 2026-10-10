@@ -14,6 +14,10 @@
 
 model_weights
 
+self_scripts/output_lerobot_train/pi05_b601_20260910_164106_20260930
+
+self_scripts/output_lerobot_train
+
 notes
 
 ### Environments & Dependencies ###
