@@ -38,9 +38,11 @@
 #     pi05 基座  lerobot--pi05_base/snapshots/master            （14.4 GB，config.json sha256 与 232 相同）
 #     PaliGemma 分词器 google--paligemma-3b-pt-224/snapshots/master
 #
-# 换 checkpoint：跑脚本时把步数当第一个参数传进去即可（同 run 的 checkpoints/<步数>/pretrained_model，
-#   005000…150000，每个约 16 MB）。本机目前有 030000 / 050000 / 100000 三份。
-#   注意新拷过来的同样要先跑上面那条 sed，否则本脚本的预检会拦下并打印该跑的命令。
+# 换 checkpoint 有两条路：
+#   ① 同步数换步数 —— 把步数当第一个参数传进去（同 run 的 checkpoints/<步数>/pretrained_model）；
+#   ② 换到别的 run  —— 用环境变量 CKPT_ROOT 指到那个 run 的 checkpoints 目录（默认是旧的全量 run）。
+#   本机旧 run 现有 030000 / 050000 / 100000 / 150000；另有 pi05_overfit_B/003000（r=64+lr1e-3 的过拟合探针）。
+#   注意：新拷过来的 checkpoint（含换了 run 的）都要先跑上面那条 sed，否则本脚本的预检会拦下并打印该跑的命令。
 # 需要把推理过程存成数据集时，改用带 --strategy.type=episodic + --dataset.* 的录制型脚本
 #   （照 run_inference_pi0.sh 的写法，但 base 策略不能带任何 --dataset.* 参数）。
 # 创建日期：2026-10-08
@@ -74,12 +76,15 @@ echo ""
 
 # ==================== 模型配置 ====================
 # pi05 LoRA adapter（与 SmolVLA/ACT 同一数据集 b601_20260910_164106 训练）
-# 要跑的步数 = 命令行第一个参数，默认 030000：
-#   ./run_inference_pi05.sh            # 030000（默认）
-#   ./run_inference_pi05.sh 050000     # 050000
-#   ./run_inference_pi05.sh 100000     # 100000
+# 要跑的权重 = CKPT_ROOT（哪个 run 的 checkpoints 目录）+ STEP（第一个参数，默认 030000）：
+#   ./run_inference_pi05.sh                              # 默认 run 的 030000
+#   ./run_inference_pi05.sh 050000                       # 默认 run 的 050000
+#   CKPT_ROOT=/home/kf/LX/pai0/pi05_overfit_B/checkpoints \
+#     ./run_inference_pi05.sh 003000                     # 过拟合探针 B 的 003000（r=64 / lr=1e-3）
+#   换重训产出时同理：CKPT_ROOT=/home/kf/LX/pai0/<新 run>/checkpoints ./run_inference_pi05.sh <步数>
+# 取法：<CKPT_ROOT>/<STEP>/pretrained_model
 STEP="${1:-030000}"
-CKPT_ROOT="/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints"
+CKPT_ROOT="${CKPT_ROOT:-/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints}"
 MODEL_PATH="$CKPT_ROOT/$STEP/pretrained_model"
 
 # 加载该 checkpoint 需要的两个本机依赖（只用于预检；真正取路径是从 checkpoint 的 json 里读，
@@ -301,7 +306,7 @@ echo ""
 echo "=========================================="
 echo "推理参数总览（pi05 / LoRA）"
 echo "=========================================="
-echo "训练步数：$STEP"
+echo "训练步数：$STEP（run: $(basename "$(dirname "$CKPT_ROOT")")）"
 echo "模型路径：$MODEL_PATH"
 echo "权重类型：LoRA adapter（r=16 / alpha=8），基座按 adapter_config.json 自动加载"
 echo "机器人类型：seeed_b601_rs_follower（单臂 B601-RS，can0）"
