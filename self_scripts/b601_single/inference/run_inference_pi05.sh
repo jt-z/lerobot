@@ -12,12 +12,14 @@
 #
 # ================== 权重说明（重要，别按 SmolVLA 的习惯套） ==================
 # MODEL_PATH 指向的是 **LoRA adapter**，不是全量权重，所以该目录里【没有 model.safetensors】：
-#   pretrained_model/  : adapter_config.json + adapter_model.safetensors(5.4 MB) + config.json
+#   pretrained_model/  : adapter_config.json + adapter_model.safetensors + config.json
 #                        + train_config.json + README.md + policy_{pre,post}processor*.json/safetensors
 #   training_state/    : optimizer/rng/scheduler 等（推理用不到）
-#   合计 14 个文件 / 16 MB。训练配置要点（config.json）：
+#   合计 14 个文件；体积随 LoRA rank 走 —— 旧 run(r=16) 16 MB，新 run(r=64) 62 MB。
+#   训练配置要点（config.json）：
 #     - type=pi05，chunk_size=50，n_action_steps=50，num_inference_steps=10（flow matching 去噪步数）
-#     - LoRA：r=16 / alpha=8 / 1,352,704 参数，target_modules 含 gemma_expert 的 q/v_proj 与
+#     - LoRA：旧 run r=16 / alpha=8 / 1,352,704 参数；新 run r=64 / alpha=8（唯一真源是 checkpoint 里的
+#             adapter_config.json，脚本不再写死 r 值），target_modules 含 gemma_expert 的 q/v_proj 与
 #             model.{state_proj,action_in_proj,action_out_proj,time_mlp_in,time_mlp_out}
 #     - 输入：observation.state(7) + observation.images.hand/front/top(3x480x640)，语言指令 = 上面的 task
 #     - 输出：action(7)，STATE/ACTION 均 QUANTILES 归一化（VISUAL=IDENTITY）
@@ -38,10 +40,19 @@
 #     pi05 基座  lerobot--pi05_base/snapshots/master            （14.4 GB，config.json sha256 与 232 相同）
 #     PaliGemma 分词器 google--paligemma-3b-pt-224/snapshots/master
 #
+# 权重来源与搬运（2026-10-12，r64 重训产出）：
+#   ubuntu-232：/home/ksa/devdata/Projects/lerobot/self_scripts/output_lerobot_train/
+#               pi05_b601_20260910_164106_20260930_r64_lr1e3/checkpoints/040000（65,031,541 B / 14 文件）
+#   本机落点：/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930_r64_lr1e3/checkpoints/040000
+#   同一条流程：rsync -a --mkpath（10 s / 6.2 MB/s）→ 双端 sha256 14/14 一致 → 再跑上面那条 sed；
+#   改后 4 个 json 与 232 不再逐字节一致，其余 10 个仍一致。
+#   （注：rsync 目标父目录不存在时要用 --mkpath，否则报 mkdir failed: No such file or directory）
+#
 # 换 checkpoint 有两条路：
 #   ① 同步数换步数 —— 把步数当第一个参数传进去（同 run 的 checkpoints/<步数>/pretrained_model）；
-#   ② 换到别的 run  —— 用环境变量 CKPT_ROOT 指到那个 run 的 checkpoints 目录（默认是旧的全量 run）。
-#   本机旧 run 现有 030000 / 050000 / 100000 / 150000；另有 pi05_overfit_B/003000（r=64+lr1e-3 的过拟合探针）。
+#   ② 换到别的 run  —— 用环境变量 CKPT_ROOT 指到那个 run 的 checkpoints 目录（默认 = r64 重训那个 run）。
+#   本机现有：r64 重训 run（本脚本默认）040000；旧 r16 run 030000 / 050000 / 100000 / 150000；
+#   另有 pi05_overfit_B/003000（r=64+lr=1e-3 的过拟合探针）。
 #   注意：新拷过来的 checkpoint（含换了 run 的）都要先跑上面那条 sed，否则本脚本的预检会拦下并打印该跑的命令。
 # 需要把推理过程存成数据集时，改用带 --strategy.type=episodic + --dataset.* 的录制型脚本
 #   （照 run_inference_pi0.sh 的写法，但 base 策略不能带任何 --dataset.* 参数）。
@@ -76,16 +87,19 @@ echo ""
 
 # ==================== 模型配置 ====================
 # pi05 LoRA adapter（与 SmolVLA/ACT 同一数据集 b601_20260910_164106 训练）
-# 要跑的权重 = CKPT_ROOT（哪个 run 的 checkpoints 目录）+ STEP（第一个参数，默认 030000）：
-#   ./run_inference_pi05.sh                              # 默认 run 的 030000
-#   ./run_inference_pi05.sh 050000                       # 默认 run 的 050000
+# 要跑的权重 = CKPT_ROOT（哪个 run 的 checkpoints 目录）+ STEP（第一个参数，默认 040000）：
+#   ./run_inference_pi05.sh                              # 默认 run（r64 重训）的 040000
+#   ./run_inference_pi05.sh 038000                       # 同一个 run 的别个步数（每 2000 步一个）
+#   CKPT_ROOT=/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints \
+#     ./run_inference_pi05.sh 030000                     # 旧 r16 run（对比基线）
 #   CKPT_ROOT=/home/kf/LX/pai0/pi05_overfit_B/checkpoints \
 #     ./run_inference_pi05.sh 003000                     # 过拟合探针 B 的 003000（r=64 / lr=1e-3）
 #   换重训产出时同理：CKPT_ROOT=/home/kf/LX/pai0/<新 run>/checkpoints ./run_inference_pi05.sh <步数>
 # 取法：<CKPT_ROOT>/<STEP>/pretrained_model
-STEP="${1:-030000}"
-CKPT_ROOT="${CKPT_ROOT:-/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints}"
+STEP="${1:-040000}"
+CKPT_ROOT="${CKPT_ROOT:-/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930_r64_lr1e3/checkpoints}"
 MODEL_PATH="$CKPT_ROOT/$STEP/pretrained_model"
+RUN_NAME="$(basename "$(dirname "$CKPT_ROOT")")"
 
 # 加载该 checkpoint 需要的两个本机依赖（只用于预检；真正取路径是从 checkpoint 的 json 里读，
 # 见下面第 1b 步，避免脚本与 checkpoint 内容说法不一致）
@@ -251,7 +265,7 @@ if echo "$CKPT_INTERNAL_CHECK" | grep -q '^FAIL|'; then
   echo "❌ checkpoint 内部路径不可用："
   echo "$CKPT_INTERNAL_CHECK" | sed -n 's/^FAIL|/   /p' | tr ';;' '\n'
   echo ""
-  echo "   若提示仍是 232 的 /home/ksa/.cache/modelscope/... 路径，先跑（16 MB，秒级）："
+  echo "   若提示仍是 232 的 /home/ksa/.cache/modelscope/... 路径，先跑（16~62 MB，秒级）："
   echo "     sed -i \"s#/home/ksa/.cache/modelscope/models/#/home/kf/dev/lerobot/model_weights/#g\" \\"
   echo "       $MODEL_PATH/{adapter_config.json,config.json,policy_preprocessor.json,train_config.json}"
   exit 1
@@ -306,9 +320,19 @@ echo ""
 echo "=========================================="
 echo "推理参数总览（pi05 / LoRA）"
 echo "=========================================="
-echo "训练步数：$STEP（run: $(basename "$(dirname "$CKPT_ROOT")")）"
+echo "训练步数：$STEP（run: $RUN_NAME）"
 echo "模型路径：$MODEL_PATH"
-echo "权重类型：LoRA adapter（r=16 / alpha=8），基座按 adapter_config.json 自动加载"
+# LoRA 的 r / alpha 直接从 checkpoint 的 adapter_config.json 读（r16 与 r64 混跑时不至看错）
+LORA_INFO=$(python3 - "$MODEL_PATH" <<'PYEOF'
+import json, os, sys
+try:
+    d = json.load(open(os.path.join(sys.argv[1], "adapter_config.json")))
+    print("r=%s / alpha=%s" % (d.get("r"), d.get("lora_alpha")))
+except Exception as exc:
+    print("(读 adapter_config.json 失败：%s)" % exc)
+PYEOF
+)
+echo "权重类型：LoRA adapter（$LORA_INFO），基座按 adapter_config.json 自动加载"
 echo "机器人类型：seeed_b601_rs_follower（单臂 B601-RS，can0）"
 echo "策略：base（纯推理，不录制、不保存数据）"
 echo "推理方式：${INFERENCE_TYPE}（pi05 支持 RTC；sync 会阻塞控制环、但可记录 model 动作列）"
