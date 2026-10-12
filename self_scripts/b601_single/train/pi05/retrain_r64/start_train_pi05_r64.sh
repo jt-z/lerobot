@@ -1,79 +1,65 @@
 #!/bin/bash
-# 启动训练：单臂 seeed_b601_rs_follower 的 Pi0.5 LoRA 微调（make coffee 任务）
+# 全量重训：单臂 seeed_b601_rs_follower 的 Pi0.5 LoRA 微调（make coffee 任务）—— 修正版配方
 #
-# 参照
-# ----
-#   1. so101_bimanual/train/start_train_pi05.sh + configs/pi05_train_config_20000steps.json
-#      —— pi05 的 LoRA 写法（peft.LORA / freeze_vision_encoder / QUANTILES 归一化 /
-#         input_features 用 base_0_rgb + left/right_wrist / rename_map 把数据集相机改名）
-#   2. b601_single/train/smolvla/start_train_smolvla_v2.sh
-#      —— 单臂 b601 的训练编排（数据完整性前置校验、传输静默期、按 pass 反算 steps、
-#         按 UUID 选卡、CUDA 探针、--resume、训练后复查）
+# 为什么要重训
+# ------------
+# 上一版（见 ../old_150k/）用 LoRA r=16 / lr=2.5e-5 跑了 150,000 步，训练 loss 降到 0.021，
+# 但离线动作误差输给「输出常数」的平凡解（150k 权重 MAE 10.92° vs 平凡解 10.04°，比值 1.09），
+# 实机表现为机械臂上下摆动、完全没学到轨迹。
 #
-# 与 SmolVLA v2 的关系
-# --------------------
-# 数据换成 b601_20260910_164106_20260930（381 ep / 946,758 帧，比 v2 的 334 ep 更大），
-# 策略换成 pi05（LoRA，只训适配器）。steps 同样**不写死**，按 NUM_PASSES 反算：
+# 过拟合小实验（../bench/overfit_test.sh）把原因钉死了：同一架构、同一份数据、同样冻结
+# VLM 只训 expert，只把 LoRA 的 rank 提到 64、lr 提到 1e-3，3000 步（1 个 episode 32 个 epoch）
+# 就把离线 MAE 打到 2.55°（平凡解 10.04°，SmolVLA 参考 5.31°）。
+# 即：不是「单臂 + 冻结 VLM + 只微调 MoE」学不动，而是原配方 lr 低了约 40 倍、rank 偏小。
 #
+# 与旧配方的差异（唯一 3 处，其余逐字相同）
+# ----------------------------------------
+#   peft.r                    16    → 64
+#   policy.optimizer_lr       2.5e-5 → 1e-3      （peft_training.mdx：LoRA 的 lr ≈ 全参的 10 倍）
+#   policy.scheduler_decay_lr 2.5e-6 → 1e-4
+# 注意本仓库的 PeftConfig 不暴露 lora_alpha，α 恒为 PEFT 默认 8（r=64 时缩放 α/r=0.125）。
+#
+# 训练量
+# ------
+# steps 不写死，按 NUM_PASSES 从数据集规模反算（也可用 STEPS 直接指定绝对步数）：
 #   有效 batch = batch_size(8) × 卡数
 #   8 卡（8×8=64）→ 2 pass × 946,758 ÷ 64 = 29,586 → 30,000 步
-#   7 卡（8×7=56）→ 33,813 → 34,000 步  ← GPU0 掉总线时走这条
+# scheduler_decay_steps 恒等于推导出的 steps，避免余弦提前走完把后半程 lr 冻住。
 #
-# NUM_PASSES 默认 2 的理由：pi05 是 3B 强预训练底座，旧仓 README_pi05.md 推荐微调区间为
-# 「大数据集/复杂任务 10000~20000 步」，2 pass ≈ 30K 步已略高于该区间；而 SmolVLA v2 的
-# 12 pass 是针对从头较充分微调的小模型，照搬到 pi05 上会远超推荐量、白烧时间。
-#
-# 两种给法，STEPS 优先于 NUM_PASSES：
-#   STEPS=150000    直接指定绝对步数 —— 「只关心这段时间能跑多少」的场景（如 7 天假期）用它
-#   NUM_PASSES=10   按数据集规模反算 —— 换数据集时不用重新拍步数
-#
-# ⚠️ scheduler_decay_steps 必须恒等于 steps
-# ------------------------------------------
-# pi05 默认 scheduler_decay_steps=30000。若 steps=34000 而不改它，余弦在 30K 步就走完，
-# 剩下的步数 lr 会一直停在 decay_lr；反之 steps 小于默认值时 lerobot 会自动缩放，
-# 但**变长不管**。所以脚本把推导出的 steps 同时传给 --steps 和
-# --policy.scheduler_decay_steps，两者不可能再走散。
+# ⚠️ 这台机器是共用的
+# -------------------
+# GPU_LIST=auto 会占用 nvidia-smi 能查到的**全部**卡。若机器上有别人的任务（例如 ACT 训练），
+# 请显式指定，例如：GPU_LIST=0,1,2,3 bash .../start_train_pi05_r64.sh
 #
 # 权重来源
 # --------
-# 用 --policy.pretrained_path 加载 lerobot/pi05_base（本地 modelscope 快照），
-# 而不是 --policy.path。区别：pretrained_path 只加载权重，policy 的输入特征
-# （本 config 显式声明的 base_0_rgb/left_wrist_0_rgb/right_wrist_0_rgb + 32 维 state）
-# 按本 config 走；且 rename_map 只在有 pretrained_path 时生效（train.py validate 检查）。
+# 用 --policy.pretrained_path 加载 lerobot/pi05_base（本地 modelscope 快照），而不是 --policy.path：
+# pretrained_path 只加载权重，输入特征按本 config 走；rename_map 也只在有 pretrained_path 时生效。
 #
-# 相机映射（数据集 hand/front/top → pi05 base 期望的三个 key）
-# ----------------------------------------------------------
+# 相机映射（数据集 front/hand/top → pi05 期望的三个 key）
+# -----------------------------------------------------
 #   front → observation.images.base_0_rgb       （主视角）
 #   hand  → observation.images.left_wrist_0_rgb （腕部）
 #   top   → observation.images.right_wrist_0_rgb（顶部）
-# 见 config 的 rename_map；训练时 preprocessor 会用它改批次键与归一化统计键。
 #
 # 前置检查（任一不过就拒绝开训）
 # ------------------------------
 #   1. 数据集完整性  总行数 == meta total_frames（+ index 无重复 + episode 边界 + 视频不截断）
 #   2. 传输静默期    数据集在 QUIET_MINS 分钟内没被写过
-# 详见 smolvla/datastet_notes/DISTILLED.md：这个损坏训练时不报错，会**静默学错**，
-# 所以不能靠「训练没崩」判断数据正常。
-#
-# 训练后复查
-# ----------
-# 钩子的守卫 3 是「有训练在跑就跳过」→ 训练期间源端若重传，数据会被静默改坏而没人修。
-# 所以跑完会再数一遍总行数，对不上就明确报出来。
+#   （数据集损坏训练时不报错，会**静默学错**，所以不能靠「训练没崩」判断数据正常）
 #
 # 用法
 # ----
-#   bash self_scripts/b601_single/train/pi05/start_train_pi05.sh
+#   bash self_scripts/b601_single/train/pi05/retrain_r64/start_train_pi05_r64.sh
 #
 #   ... --resume              # 从本配置自己的 last checkpoint 续训（沿用 ckpt 里的 steps）
 #   ... --skip-data-check     # 跳过前置校验（不推荐）
 #   ... --dry-run             # 只跑前置检查 + 打印将执行的命令
 #
 # 可调环境变量
-#   STEPS        直接指定训练步数（优先于 NUM_PASSES）。例：STEPS=150000
-#                （150k 步 ≈ 6.2 天，正好装进 7 天假期；200k 需 8.3 天，装不下）
+#   GPU_LIST     用哪些卡（默认 auto）。共用机器上**务必显式指定**，如 "0,1,2,3"
 #   NUM_PASSES   目标训练量（默认 2），steps = NUM_PASSES × total_frames ÷ (batch_size × 卡数)
-#   GPU_LIST     用哪些卡（默认 auto）。auto = 用 nvidia-smi 能查到的全部卡（按 UUID）；
-#                掉 PCIe 总线的卡会被自动排除；也可写死 "1,2,3,4,5,6,7" 或 UUID 列表
+#   STEPS        直接指定绝对步数（优先于 NUM_PASSES）
 #   DS_ROOT      覆盖数据集根目录（默认从配置里读）
 #   QUIET_MINS   传输静默期分钟数（默认 5）
 #   PI05_BASE    预训练权重路径
@@ -84,9 +70,9 @@
 set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$(realpath "$0")")" && pwd)
-SELF_SCRIPTS_DIR=$(cd "$SCRIPT_DIR/../../.." && pwd)
-CONFIG="$SCRIPT_DIR/pi05_train_config.json"
-VERIFY=${VERIFY_SCRIPT:-"$SCRIPT_DIR/../smolvla/bench/verify_dataset.py"}
+SELF_SCRIPTS_DIR=$(cd "$SCRIPT_DIR/../../../.." && pwd)
+CONFIG="$SCRIPT_DIR/pi05_train_config_r64.json"
+VERIFY=${VERIFY_SCRIPT:-"$SCRIPT_DIR/../../smolvla/bench/verify_dataset.py"}
 
 PI05_BASE=${PI05_BASE:-/home/ksa/.cache/modelscope/models/lerobot--pi05_base/snapshots/master}
 QUIET_MINS=${QUIET_MINS:-5}
@@ -100,7 +86,7 @@ while [ $# -gt 0 ]; do
         --resume)          RESUME=1; shift ;;
         --skip-data-check) SKIP_CHECK=1; shift ;;
         --dry-run)         DRY_RUN=1; shift ;;
-        -h|--help)         sed -n '2,82p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)         sed -n '2,86p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "未知参数: $1（-h 看用法）" >&2; exit 3 ;;
     esac
 done
@@ -134,11 +120,13 @@ step "检查可用 GPU"
 if [ "$GPU_LIST" = "auto" ]; then
     # 掉总线的卡 nvidia-smi 查不到，自然被排除
     GPU_LIST=$(nvidia-smi --query-gpu=uuid --format=csv,noheader 2>/dev/null | tr -d ' ' | paste -sd, -)
+    FREE_MIB=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)
+    echo "  ⚠ GPU_LIST=auto：会占用全部可用卡。共用机器上请显式指定，例如 GPU_LIST=0,1,2,3"
 fi
 [ -n "$GPU_LIST" ] || die "nvidia-smi 没列出任何可用 GPU（驱动挂了？先复位故障卡）"
 NPROC=$(awk -F, '{print NF}' <<<"$GPU_LIST")
 
-nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader 2>/dev/null | sed 's/^/    /'
+nvidia-smi --query-gpu=index,name,memory.total,memory.used --format=csv,noheader 2>/dev/null | sed 's/^/    /'
 echo "  选中 $NPROC 张 → CUDA_VISIBLE_DEVICES=$GPU_LIST"
 
 # CUDA 栈是否真的能用。一张卡掉 PCIe 总线会让 cuInit 直接失败，剩下健康的卡也一张都用不了；
@@ -156,7 +144,6 @@ PY
 CUDA_RC=${CUDA_PROBE%% *}; CUDA_N=${CUDA_PROBE##* }
 if [ "$CUDA_RC" != "0" ]; then
     if [ "$DRY_RUN" = 1 ]; then
-        # dry-run 只提示不拦，好让 --dry-run 仍可用来核对启动计划
         echo "  ⚠ cuInit 失败（rc=$CUDA_RC）：真实开训会在这里被拦下，先复位故障卡"
     else
         EXIT_CODE=3 die "CUDA 驱动初始化失败（cuInit rc=$CUDA_RC）。一张卡掉总线会把整个 CUDA 栈拖死，
