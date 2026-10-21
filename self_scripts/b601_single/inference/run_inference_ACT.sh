@@ -84,7 +84,7 @@ ACTION_TRACE_LOG="$HOME/dev/lerobot/self_scripts/_logs/action_test.log"
 # 0 = 直接用 lerobot-rollout（无可视化）。
 # 与 ACTION_TRACE 可同时为 1：此时统一用 act_feature_viz.py 作入口，
 # 它会在装载自身补丁前顺带装上 action_trace.py 的动作追踪补丁。
-ACT_VIZ=1
+ACT_VIZ=0
 ACT_VIZ_WRAPPER="$(dirname "$(readlink -f "$0")")/../../tools/act_feature_viz.py"
 ACT_VIZ_EVERY_N=1     # 每 N 次取动作刷一帧（1 = 30Hz；调大则降帧率、省 CPU）
 ACT_VIZ_ANALYSIS=1    # 1 = 额外输出上面四个分析视图与对应的 MP4；0 = 只留主叠图
