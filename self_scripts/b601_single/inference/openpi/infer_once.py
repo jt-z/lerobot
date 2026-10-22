@@ -4,7 +4,7 @@
 用途：真机接入前的“喂一帧看看”验证；也可在采集回放时逐帧对比。
 
 用法：
-  source b601_pi05_env.sh
+  source env.sh
   $PY infer_once.py --model 330 \
       --state -3.7 99.3 60.2 20.0 -13.5 -11.2 142.0 \
       --front /path/front.png --hand /path/hand.png --top /path/top.png \

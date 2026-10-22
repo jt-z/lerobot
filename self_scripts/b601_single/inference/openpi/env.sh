@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # b601 π0.5 推理公共环境（source 本文件）
-# 用法： source b601_pi05_env.sh
+# 用法： source env.sh
 export B601_HOME=/home/kf/b601_pi05
 export B601_SFT_ROOT=$B601_HOME
 export PYTHONPATH="$B601_HOME/scripts:$B601_HOME/openpi/src:$B601_HOME/openpi/packages/openpi-client/src${PYTHONPATH:+:$PYTHONPATH}"

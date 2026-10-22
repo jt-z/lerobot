@@ -5,7 +5,7 @@
 不需要把 JAX 权重转成 lerobot 格式。
 
 用法：
-  source b601_pi05_env.sh
+  source env.sh
   $PY serve_policy.py --model 330 --port 8000
   # 客户端：
   #   python -c "from openpi_client.websocket_client_policy import WebsocketClientPolicy as P; \

@@ -4,12 +4,12 @@
 #       （任务文本/相机/fps/方向修正与 self_scripts/b601_single/02_record.sh 采集完全一致）
 #
 # 用法：
-#   ./run_inference_pi05.sh                               # 默认 run（r64 重训）的 040000
-#   ./run_inference_pi05.sh 038000                        # 同一个 run 别的步数（每 2000 步一个）
+#   ./run_pi05_lora.sh                               # 默认 run（r64 重训）的 040000
+#   ./run_pi05_lora.sh 038000                        # 同一个 run 别的步数（每 2000 步一个）
 #   CKPT_ROOT=/home/kf/LX/pai0/pi05_b601_20260910_164106_20260930/checkpoints \
-#     ./run_inference_pi05.sh 030000                      # 旧 r16 run（对比基线）
+#     ./run_pi05_lora.sh 030000                      # 旧 r16 run（对比基线）
 #   CKPT_ROOT=/home/kf/LX/pai0/pi05_overfit_B/checkpoints \
-#     ./run_inference_pi05.sh 003000                      # 过拟合探针 B（r=64 / lr=1e-3）
+#     ./run_pi05_lora.sh 003000                      # 过拟合探针 B（r=64 / lr=1e-3）
 #
 # 权重形态（重要，别按 SmolVLA 的习惯套）：MODEL_PATH 指向 LoRA adapter，不是全量权重，
 #   目录里【没有 model.safetensors】，只有 adapter_config.json + adapter_model.safetensors

@@ -15,10 +15,10 @@
   - --task 文本必须与训练时完全一致，否则语言条件偏掉
 
 先干跑（不接机器人，验证 server + 主循环时序）：
-  python run_pi05_ws_rollout.py --dry-run --duration 5
+  python run_rollout.py --dry-run --duration 5
 
 真机：
-  bash run_pi05_ws_rollout.sh 330
+  bash run_rollout.sh 330
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pi05_ws_client import CAMS, JOINTS, Pi05WSClient  # noqa: E402
+from ws_client import CAMS, JOINTS, Pi05WSClient  # noqa: E402
 
 TASK_DEFAULT = ("Pick up the paper cup, place it on the silver tray of the coffee machine, pick up the cube, "
                 "press the button with the cube (red light on), wait about 4 seconds, release the button "

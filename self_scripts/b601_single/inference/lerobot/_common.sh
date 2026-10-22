@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# b601 单臂推理公共库 —— 由 run_inference_ACT.sh / run_inference_smolvla.sh / run_inference_pi05.sh source。
+# b601 单臂推理公共库 —— 由 run_act.sh / run_smolvla.sh / run_pi05_lora.sh source。
 #
 # 本文件只定义默认值与函数；source 时不检查硬件、不打印、不联网。
 # 各脚本的固定顺序：source 本文件 → 覆盖模型专属变量 → 调检查函数 → 打印总览 → b601_run_rollout。
@@ -50,7 +50,7 @@ INFERENCE_TYPE="sync"   # sync = 换 chunk 时阻塞前向（可记录 model 列
 #   sent  = 传入 robot.send_action 的 dict（插值器 + robot_action_processor 之后）
 #   cmd   = send_action 返回值 = 乘 joint_directions、裁 joint_limits 之后的目标角（度）
 ACTION_TRACE=1
-ACTION_TRACE_WRAPPER="$_B601_INFER_DIR/../../tools/action_trace.py"
+ACTION_TRACE_WRAPPER="$_B601_INFER_DIR/../../../tools/action_trace.py"
 ACTION_TRACE_LOG="$HOME/dev/lerobot/self_scripts/_logs/action_test.log"
 
 LOG_DIR="$HOME/dev/lerobot/self_scripts/_logs"

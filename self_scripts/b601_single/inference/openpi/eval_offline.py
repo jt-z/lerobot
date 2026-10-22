@@ -11,9 +11,9 @@
   B) --dataset-root DIR   本地 v2.1 数据集（episode_XXXXXX.parquet + 每集 mp4）
 
 用法：
-  source b601_pi05_env.sh
-  $PY infer_offline.py --ckpt "${B601_CKPT[330]}" --anchors anchors_6.npz
-  $PY infer_offline.py --ckpt "${B601_CKPT[462]}" --anchors anchors_6.npz --out offline_462.json
+  source env.sh
+  $PY eval_offline.py --ckpt "${B601_CKPT[330]}" --anchors anchors_6.npz
+  $PY eval_offline.py --ckpt "${B601_CKPT[462]}" --anchors anchors_6.npz --out offline_462.json
 """
 from __future__ import annotations
 

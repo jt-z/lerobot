@@ -10,7 +10,7 @@
 # 结果写到本目录 offline_<模型>.json（offline_330.json / offline_462.json）
 set -euo pipefail
 cd "$(dirname "$0")"
-source ./b601_pi05_env.sh
+source ./env.sh
 
 MODEL=${1:?用法: bash run_offline.sh <330|462> <数据集目录|--anchors npz> [episodes...]}
 case "$MODEL" in
@@ -30,7 +30,7 @@ else
 fi
 EPS=${*:-0 40 120}
 
-$PY infer_offline.py \
+$PY eval_offline.py \
   --ckpt "${B601_CKPT[$MODEL]}" \
   "${SRC_ARG[@]}" \
   --episodes $EPS \

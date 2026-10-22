@@ -6,7 +6,7 @@
 依赖：openpi-client（纯 python，已随 openpi 代码在 /home/kf/b601_pi05/openpi/packages/openpi-client/src）
 
 自检（不需要机器人）：
-  python pi05_ws_client.py --self-test --host 127.0.0.1 --port 8000
+  python ws_client.py --self-test --host 127.0.0.1 --port 8000
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def main():
     ap.add_argument('--self-test', action='store_true', help='用假观测验证连通性，不接机器人')
     a = ap.parse_args()
     if not a.self_test:
-        ap.error('目前只支持 --self-test；真机请用 run_pi05_ws_rollout.py')
+        ap.error('目前只支持 --self-test；真机请用 run_rollout.py')
 
     cli = Pi05WSClient(a.host, a.port)
     print('server metadata:', cli.metadata)

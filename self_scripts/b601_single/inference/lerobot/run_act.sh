@@ -3,12 +3,12 @@
 # 任务：单臂端起纸杯放上咖啡机托盘、拿方块按按钮等 4 秒、方块放回桌面、再把杯子端回桌面
 #       （任务文本/相机/fps/方向修正与 self_scripts/b601_single/02_record.sh 采集完全一致）
 #
-# 用法：
-#   bash run_inference_ACT.sh                # 默认：180_new_datasets_act_model/100k（旧 100k 权重）
-#   bash run_inference_ACT.sh a800           # 8×A800 训练 50k（462 集），不限时长
-#   bash run_inference_ACT.sh A              # A/B 对比：全量 462 集 / 50k，限时 600 秒
-#   bash run_inference_ACT.sh B              # A/B 对比：前 330 集 / 35.5k，限时 600 秒
-#   bash run_inference_ACT.sh /path/to/pretrained_model     # 任意 ACT 权重目录
+# 用法（在本目录下）：
+#   bash run_act.sh                # 默认：180_new_datasets_act_model/100k（旧 100k 权重）
+#   bash run_act.sh a800           # 8×A800 训练 50k（462 集），不限时长
+#   bash run_act.sh A              # A/B 对比：全量 462 集 / 50k，限时 600 秒
+#   bash run_act.sh B              # A/B 对比：前 330 集 / 35.5k，限时 600 秒
+#   bash run_act.sh /path/to/pretrained_model     # 任意 ACT 权重目录
 #
 # 权重来源：
 #   100k   /home/kf/dev/lerobot/model_weights/180_new_datasets_act_model/100k_pretrained_model
@@ -64,7 +64,7 @@ fi
 #     （横轴=chunk 内第 k 步）、mass/<cam>（各相机注意力质量）、selfattn（100×100 自注意力）。
 # 与 ACTION_TRACE 可同时为 1：此时统一用 act_feature_viz.py 作入口，它会顺带装上动作追踪补丁。
 ACT_VIZ=0
-ACT_VIZ_WRAPPER="$_B601_INFER_DIR/../../tools/act_feature_viz.py"
+ACT_VIZ_WRAPPER="$_B601_INFER_DIR/../../../tools/act_feature_viz.py"
 ACT_VIZ_EVERY_N=1       # 每 N 次取动作刷一帧（1 = 30Hz；调大降帧率、省 CPU）
 ACT_VIZ_ANALYSIS=1      # 1 = 额外输出四个分析视图与对应 MP4；0 = 只留主叠图
 ACT_VIZ_HEADS_EVERY=10  # per-head 网格刷新间隔（tick，10 ≈ 3Hz）

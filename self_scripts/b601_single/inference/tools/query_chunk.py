@@ -13,8 +13,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pi05_ws_client import CAMS, Pi05WSClient  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "openpi"))
+from ws_client import CAMS, Pi05WSClient  # noqa: E402
 
 JOINTS = ['shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_yaw', 'wrist_roll', 'gripper']
 TASK = ("Pick up the paper cup, place it on the silver tray of the coffee machine, pick up the cube, "

@@ -3,8 +3,8 @@
 # 任务：单臂端起纸杯放上咖啡机托盘、拿方块按按钮等 4 秒、方块放回桌面、再把杯子端回桌面
 #       （任务文本/相机/fps/方向修正与 self_scripts/b601_single/02_record.sh 采集完全一致）
 #
-# 用法：
-#   bash run_inference_smolvla.sh
+# 用法（在本目录下）：
+#   bash run_smolvla.sh
 #
 # 模型权重：/home/kf/LX/pai0/smolvla_b601_20260910_164106_20260924/checkpoints/090000/pretrained_model
 #   （90000 步 SmolVLA，7 关节 = 单臂；2026-09-30 从 ubuntu-232 同步，12 文件 / 1.5G，双端 sha256 一致）

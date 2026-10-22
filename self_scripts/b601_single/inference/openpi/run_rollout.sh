@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # 路线 A 启动器：本机 lerobot 环境跑控制循环，4090 上的 JAX policy server 出动作。
 #
-# 用法：
-#   bash run_pi05_ws_rollout.sh 330              # 真机（330 集模型，需先起 server）
-#   bash run_pi05_ws_rollout.sh 462 --duration 60
-#   bash run_pi05_ws_rollout.sh 330 --dry-run --duration 5     # 干跑，不接机器人
+# 用法（在本目录下）：
+#   bash run_rollout.sh 330              # 真机（330 集模型，需先起 server）
+#   bash run_rollout.sh 462 --duration 60
+#   bash run_rollout.sh 330 --dry-run --duration 5     # 干跑，不接机器人
 #
 # 前置（另开一个窗口）：
-#   cd /home/kf/dev/lerobot/self_scripts/b601_single/inference
-#   source b601_pi05_env.sh && $PY serve_policy.py --model 330 --port 8000
+#   cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
+#   source env.sh && $PY serve_policy.py --model 330 --port 8000
 set -uo pipefail
 cd "$(dirname "$0")"
 
-MODEL=${1:?用法: bash run_pi05_ws_rollout.sh <330|462> [额外参数...]}
+MODEL=${1:?用法: bash run_rollout.sh <330|462> [额外参数...]}
 shift || true
 PORT=${B601_WS_PORT:-8000}
 
@@ -30,4 +30,4 @@ if [[ ! " $* " =~ " --dry-run " ]]; then
   ip -br link show can0 | grep -q "UP" || { echo "⚠️ can0 未 UP，尝试拉起需要 sudo"; }
 fi
 
-exec $LEROBOT_PY run_pi05_ws_rollout.py --port "$PORT" "$@"
+exec $LEROBOT_PY run_rollout.py --port "$PORT" "$@"
