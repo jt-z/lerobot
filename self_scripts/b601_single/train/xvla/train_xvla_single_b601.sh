@@ -14,7 +14,7 @@
 #   7 → pad 到 20 → 推理时再裁回 7，无需任何代码改动。
 #
 # 微调完成后，推理脚本见：
-#   self_scripts/b601_single/inference/pretrained_models/run_inference_single_b601_make_coffee_xvla.sh
+#   self_scripts/b601_single/inference/lerobot/run_xvla.sh
 #
 # 用法（脚本内部全用绝对路径，任意 cwd 均可）：
 #   bash self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh

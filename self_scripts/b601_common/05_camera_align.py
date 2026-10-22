@@ -47,7 +47,7 @@ DEFAULT_DATASET = os.path.join(PAI0, "b601_data", "b601_20260910_164106")
 OUT_DIR = os.path.join(PAI0, "logs", "camera_align")
 REF_DIR = os.path.join(OUT_DIR, "ref")
 CAMS = ["hand", "front", "top"]
-# 与 self_scripts/b601_single/inference/run_inference_ACT.sh 的 CAMERAS 保持一致
+# 与 self_scripts/b601_single/inference/lerobot/_common.sh 的 CAMERAS 保持一致
 BY_ID = {
     "hand": "/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0",
     "front": "/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0",

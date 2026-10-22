@@ -29,9 +29,10 @@
 # bash self_scripts/b601_single/02_record.sh --resume <repo_id> [追加集数]   # 续录
 # bash self_scripts/b601_single/03_replay.sh                  # 回放已采集数据（可选 rerun 窗口）
 # bash self_scripts/b601_single/04_dagger_collect.sh          # DAgger 扩充采集（ACT 自主 + 人工纠错）
-# bash self_scripts/b601_single/inference/run_inference_ACT.sh        # 单臂 ACT 推理
-# bash self_scripts/b601_single/inference/run_inference_smolvla.sh    # 单臂 SmolVLA 推理
-# bash self_scripts/b601_single/inference/pretrained_models/run_inference_single_b601_make_coffee_xvla.sh  # 单臂 X-VLA 推理
+# bash self_scripts/b601_single/inference/lerobot/run_act.sh           # 单臂 ACT 推理
+# bash self_scripts/b601_single/inference/lerobot/run_smolvla.sh       # 单臂 SmolVLA 推理
+# bash self_scripts/b601_single/inference/lerobot/run_xvla.sh          # 单臂 X-VLA 推理
+# bash self_scripts/b601_single/inference/lerobot/run_pi05_lora.sh     # 单臂 π0.5 LoRA 推理
 # bash self_scripts/b601_single/train/xvla/train_xvla_single_b601.sh [session 名]   # 单臂 X-VLA 微调
 # bash self_scripts/b601_single/train/smolvla/start_train_smolvla_v2.sh [--resume|--dry-run|--skip-data-check]  # 单臂 SmolVLA 训练（含数据校验/GPU 健康检查/按 pass 反算 steps；bench/verify_dataset.py + datastet_notes 配套）
 #

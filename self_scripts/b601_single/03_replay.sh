@@ -7,7 +7,7 @@
 #   joint_directions / 端口 / 机器人类型，否则关节方向会反。
 #
 # 默认kfinfer的数据集：/home/kf/LX/pai0/b601_data/b601_20260915_002947（1 集 / 2909 帧 / 30 Hz）
-# 参照：self_scripts/b601_single/02_record.sh（硬件端口/相机/方向修正）、inference/run_inference_ACT.sh
+# 参照：self_scripts/b601_single/02_record.sh（硬件端口/相机/方向修正）、inference/lerobot/run_act.sh
 # 创建日期：2026-09-15
 #
 # ⚠️ 安全：kfinfer下发的是**绝对目标角**（数据集里是主臂/录制坐标系的位置），
@@ -70,7 +70,7 @@ REPLAY_RERUN="$(dirname "$(readlink -f "$0")")/../b601_common/06_replay_rerun.py
 DISPLAY_MODE="rerun"          # rerun | foxglove
 DISPLAY_IP=""                 # 留空=本机 viewer；填 IP 则连远端 rerun --serve
 DISPLAY_PORT=""               # 远端端口（配合 DISPLAY_IP）
-# rerun 缓冲/内存（与 inference/run_inference_ACT.sh 一致，避免 gRPC transport error 与帧数上限）
+# rerun 缓冲/内存（与 inference/lerobot/run_act.sh 一致，避免 gRPC transport error 与帧数上限）
 export RERUN_FLUSH_NUM_BYTES="${RERUN_FLUSH_NUM_BYTES:-10000000}"
 export LEROBOT_RERUN_MEMORY_LIMIT="${LEROBOT_RERUN_MEMORY_LIMIT:-30%}"
 

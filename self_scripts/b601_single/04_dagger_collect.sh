@@ -1,6 +1,6 @@
 #!/bin/bash
 # DAgger 数据扩充采集（连续录制模式）- 单 B601-RS
-# 任务：与 inference/run_inference_ACT.sh 完全一致（倒咖啡）
+# 任务：与 inference/lerobot/run_act.sh 完全一致（倒咖啡）
 #
 # 目的：
 #   用已训练的 ACT 50k 模型自主执行，在出现失败时人工接管纠错，
@@ -62,7 +62,7 @@ echo ""
 
 # ==================== 模型配置 ====================
 # 用于自主执行的 ACT 权重（哪一版策略出错，就针对它做纠错扩充）
-# 100k step（8 卡 × batch 8 训练），与 inference/run_inference_ACT.sh 使用的权重一致
+# 100k step（8 卡 × batch 8 训练），与 inference/lerobot/run_act.sh 使用的权重一致
 MODEL_PATH="/home/kf/dev/lerobot/model_weights/100000/pretrained_model"
 
 # ACT 单次前向解码，无 num_steps / num_inference_steps 参数，留空即可

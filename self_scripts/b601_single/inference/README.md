@@ -1,34 +1,32 @@
 # b601 单臂推理包（z790 / 4090）
 
-本目录有**两条互不相通的技术栈**，先确认要跑哪一个：
+本目录按**技术栈**分成三个子目录，先确认要跑哪一个：
 
-| 场景 | 权重格式 | 入口 |
-|---|---|---|
-| lerobot 策略：ACT / SmolVLA / π0.5-**LoRA** | lerobot `pretrained_model/` | `run_inference_ACT.sh` / `run_inference_smolvla.sh` / `run_inference_pi05.sh`（公共逻辑在 `_common.sh`） |
-| π0.5 **全参**微调（openpi / JAX） | openpi checkpoint（JAX，**不要**转成 lerobot 格式） | `serve_policy.py` + `run_pi05_ws_rollout.sh`（本文后半"路线 A"） |
+| 目录 | 用什么 | 权重格式 | 入口 |
+|---|---|---|---|
+| `lerobot/` | lerobot-rollout，直连 can0 从臂 | lerobot `pretrained_model/` | `run_act.sh` / `run_smolvla.sh` / `run_pi05_lora.sh` / `run_xvla.sh`（公共逻辑在 `_common.sh`） |
+| `openpi/` | openpi / JAX policy server | openpi checkpoint（JAX，**不要**转成 lerobot 格式） | `serve_policy.py` + `run_rollout.sh` |
+| `tools/` | 一次性诊断，不启动策略 | — | `capture_obs.py` / `query_chunk.py` / `watch_state.py` |
 
-两者都叫 pi05，但权重、环境、启动方式完全不同：`run_inference_pi05.sh` 跑的是 lerobot LoRA adapter；
-`serve_policy.py` 跑的是 openpi 全参 checkpoint。
+两个 pi05 不是一回事：`lerobot/run_pi05_lora.sh` 跑的是 lerobot LoRA adapter；
+`openpi/serve_policy.py` 跑的是 openpi 全参 checkpoint。
 
 ## lerobot 路线（本机 4090 + can0 直连从臂）
 
-    bash run_inference_ACT.sh              # 默认 100k 权重
-    bash run_inference_ACT.sh a800         # 8×A800 训练 50k（462 集），不限时长
-    bash run_inference_ACT.sh A            # A/B：全量 462 集 / 50k，600 秒
-    bash run_inference_ACT.sh B            # A/B：前 330 集 / 35.5k，600 秒
-    bash run_inference_smolvla.sh          # SmolVLA 90k
-    bash run_inference_pi05.sh             # π0.5 LoRA，默认 r64 run 的 040000
-    bash run_inference_pi05.sh 038000      # 同一个 run 的别的步数
-    CKPT_ROOT=/home/kf/LX/pai0/<别的 run>/checkpoints bash run_inference_pi05.sh <步数>
+    cd self_scripts/b601_single/inference/lerobot
+    bash run_act.sh                # ACT：默认 100k 权重
+    bash run_act.sh a800           # 8×A800 训练 50k（462 集），不限时长
+    bash run_act.sh A              # A/B：全量 462 集 / 50k，600 秒
+    bash run_act.sh B              # A/B：前 330 集 / 35.5k，600 秒
+    bash run_smolvla.sh            # SmolVLA 90k
+    bash run_pi05_lora.sh          # π0.5 LoRA，默认 r64 run 的 040000
+    bash run_pi05_lora.sh 038000   # 同一个 run 的别的步数
+    CKPT_ROOT=/home/kf/LX/pai0/<别的 run>/checkpoints bash run_pi05_lora.sh <步数>
+    bash run_xvla.sh               # X-VLA
 
-三个脚本依次做：环境激活 → 权重/包装器检查 → CAN/相机/校准检查 → 参数总览 → 人工确认 → `lerobot-rollout --strategy.type=base`。
-共享的硬件端口、相机路径、任务文本、`joint_directions`、日志目录全部集中在 [`_common.sh`](./_common.sh)，
+几个脚本依次做：环境激活 → 权重/包装器检查 → CAN/相机/校准检查 → 参数总览 → 人工确认 → `lerobot-rollout --strategy.type=base`。
+共享的硬件端口、相机路径、任务文本、`joint_directions`、日志目录全部集中在 [`lerobot/_common.sh`](./lerobot/_common.sh)，
 改硬件只改这一处。日志写在 `self_scripts/_logs/inference_b601_*.log`。
-
-离线动作 MAE（不接机器人、只跑策略前向）：
-
-    bash run_offline.sh 330 /home/kf/LX/pai0/b601_data/b601_v21          # 默认 ep 0 40 120
-    bash run_offline.sh 462 --anchors /home/kf/b601_pi05/anchors_6.npz   # 用锚点，不搬 22G 数据集
 
 ## π0.5 全参（openpi / JAX）
 
@@ -42,6 +40,12 @@
 两个模型在**训练分布内**都很好（≈1.1°），但 `330` 对没见过的 episode 基本失效（7.64°）。所以真机验证**不要期待零样本泛化**，重点看它在训练场景下能不能把动作序列走对。
 
 z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 24G），与 A800 的 98.7ms 相当。
+
+离线动作 MAE（不接机器人、只跑策略前向）：
+
+    cd self_scripts/b601_single/inference/openpi
+    bash run_offline.sh 330 /home/kf/LX/pai0/b601_data/b601_v21          # 默认 ep 0 40 120
+    bash run_offline.sh 462 --anchors /home/kf/b601_pi05/anchors_6.npz   # 用锚点，不搬 22G 数据集
 
 ## 目录
 
@@ -57,23 +61,26 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
     └── logs/                      server 日志 + rollout CSV
 
     /home/kf/dev/lerobot/self_scripts/b601_single/inference/   ← 本目录
-    ├── _common.sh                 三个 lerobot 推理脚本的公共库（硬件/检查/总览/命令拼装）
-    ├── run_inference_ACT.sh       ACT（权重别名 default / a800 / A / B，或直接给路径）
-    ├── run_inference_smolvla.sh   SmolVLA
-    ├── run_inference_pi05.sh      π0.5 LoRA（CKPT_ROOT + 步数）
-    ├── run_offline.sh             离线 MAE（330 / 462）
-    ├── b601_pi05_env.sh           JAX 侧环境变量（server 用）
-    ├── serve_policy.py            路线 A：把权重起成 websocket policy server
-    ├── pi05_ws_client.py          路线 A：客户端（含 --self-test 自检）
-    ├── run_pi05_ws_rollout.py     路线 A：真机主循环（30Hz、每 5 步重观测、25° 限幅、CSV）
-    ├── run_pi05_ws_rollout.sh     路线 A：启动器
-    ├── infer_offline.py           离线 MAE 的实现（与 A800 完全同口径）
-    ├── infer_once.py              单帧观测 → 50 步动作块
-    ├── capture_obs.py             抓当前场景一帧观测存 npz（不动电机）
-    ├── query_chunk.py             把一份观测发给 server，看 50 步动作块结构
-    ├── watch_state.py             只读关节角，核对符号/单位
-    ├── pretrained_models/         X-VLA 推理脚本（历史放置位置）
-    └── README.md
+    ├── README.md
+    ├── lerobot/                   lerobot-rollout 栈（lerobot 格式权重）
+    │   ├── _common.sh             公共库：环境/CAN/相机/校准检查、参数总览、命令拼装
+    │   ├── run_act.sh             ACT（别名 default / a800 / A / B，或任意权重路径）
+    │   ├── run_smolvla.sh         SmolVLA 90k
+    │   ├── run_pi05_lora.sh       π0.5 LoRA（CKPT_ROOT + 步数）
+    │   └── run_xvla.sh            X-VLA（Phase II 微调权重，sync 推理）
+    ├── openpi/                    π0.5 全参（JAX，非 lerobot 格式）
+    │   ├── env.sh                 环境变量 + B601_CKPT 短名表
+    │   ├── serve_policy.py        起 websocket policy server
+    │   ├── run_rollout.py         真机主循环（30Hz、每 5 步重观测、25° 限幅、CSV）
+    │   ├── run_rollout.sh         主循环启动器
+    │   ├── ws_client.py           客户端（含 --self-test 自检）
+    │   ├── eval_offline.py        离线 MAE 实现（与 A800 完全同口径）
+    │   ├── run_offline.sh         离线 MAE 启动器（330 / 462）
+    │   └── infer_once.py          单帧观测 → 50 步动作块
+    └── tools/                     一次性诊断
+        ├── capture_obs.py         抓当前场景一帧观测存 npz（不动电机）
+        ├── query_chunk.py         把一份观测发给 server，看 50 步动作块结构
+        └── watch_state.py         只读关节角，核对符号/单位
 
 ## 路线 A：π0.5 全参真机验证（server + 控制循环）
 
@@ -84,11 +91,11 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
     # 看到 READY {...} 且 ss -ltn | grep 8000 有监听即就绪
 
     # 终端 2：先干跑 5 秒（不接机器人，验证时序）
-    cd /home/kf/dev/lerobot/self_scripts/b601_single/inference
-    bash run_pi05_ws_rollout.sh 330 --dry-run --duration 5
+    cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
+    bash run_rollout.sh 330 --dry-run --duration 5
 
     # 终端 2：真机（会先要求确认零位/安全）
-    bash run_pi05_ws_rollout.sh 330 --duration
+    bash run_rollout.sh 330 --duration 60
 
 已实测的干跑结果：6 秒 180 步 = 严格 30Hz，36 次推理，平均 102.5 ms，CSV 落在
 `/home/kf/b601_pi05/logs/rollout_pi05_ws_*.csv`（cmd_* 与 state_* 并排，方便核对）。
