@@ -34,10 +34,19 @@
 
 | 短名 | 训练数据 | 步数 | 离线动作 MAE（训练分布内 / 未见过的 episode） |
 |---|---|---|---|
-| `330` | 前 330 集（ep 0–329） | 24,653 | 1.10° ／ **7.64°** |
-| `462` | 全 462 集 | 34,750 | 1.15° ／ 1.12°（但那 13 集它训练时见过，属记忆） |
+| `330` | 前 330 集（ep 0–329，未剪裁） | 24,653 | 1.10° ／ **7.64°** |
+| `462` | 全 462 集（未剪裁） | 34,750 | 1.15° ／ 1.12°（但那 13 集它训练时见过，属记忆） |
+| `trim330` | trim 版前 330 集（剪掉首尾静止，732,673 帧） | 16,942 | **1.64°**（trim 锚点同口径；首帧行程 21.05° ≈ 标签 20.41°） |
+| `trim8471` | 同上，中途里程碑 | 8,471 | 3.67°（首帧行程 20.39° ≈ 标签 20.41°） |
 
-两个模型在**训练分布内**都很好（≈1.1°），但 `330` 对没见过的 episode 基本失效（7.64°）。所以真机验证**不要期待零样本泛化**，重点看它在训练场景下能不能把动作序列走对。
+两个旧模型在**训练分布内**都很好（≈1.1°），但 `330` 对没见过的 episode 基本失效（7.64°）。所以真机验证**不要期待零样本泛化**，重点看它在训练场景下能不能把动作序列走对。
+
+`trim330` 这一版是为治**"零位不动"**（每集开头 2.5 秒静默 + `action ≈ −state` → 模型学到"保持不动"）而重训的：
+训练前把每集首尾静默剪掉，首帧 50 步行程的标签从 0.6° 变成 63°。实测结果：
+**首帧行程已等于标签（0.999 / 1.031），起机不再需要 `--kick-deg` 兜底**；精度上 1.64° 仍略逊于旧版 2 pass 的 1.36°，属同一量级。
+
+> 参考值换算：trim 锚点上四个模型的同口径对比（旧版 330=1.356°、旧版 462=1.358°、trim@8,471=3.666°、trim@16,942=1.644°）
+> 见 A800-55 的 `pi05/reports/mae17_*.json`；锚点由 `--dataset-repo` 解耦，保证"数据版本不同"也能比。
 
 z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 24G），与 A800 的 98.7ms 相当。
 
@@ -57,7 +66,7 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
     ├── openpi/                    openpi 代码
     ├── anchors_6.npz              6 个评测锚点（11M，不用搬 22G 数据集）
     ├── offline_330.json / offline_462.json   离线评测结果
-    ├── start_serve.sh             起 policy server（后台常驻）
+    ├── start_serve.sh             起 policy server（后台常驻；短名 330/462/trim330/trim8471 或 ckpt 路径）
     └── logs/                      server 日志 + rollout CSV
 
     /home/kf/dev/lerobot/self_scripts/b601_single/inference/   ← 本目录
@@ -69,8 +78,9 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
     │   ├── run_pi05_lora.sh       π0.5 LoRA（CKPT_ROOT + 步数）
     │   └── run_xvla.sh            X-VLA（Phase II 微调权重，sync 推理）
     ├── openpi/                    π0.5 全参（JAX，非 lerobot 格式）
-    │   ├── env.sh                 环境变量 + B601_CKPT 短名表
+    │   ├── env.sh                 环境变量 + B601_CKPT 短名表（⚠️ 其中 B601_REPO 默认 v21_clean，跑 trim 版要覆盖成 b601/v21_clean_trim_eps0_329）
     │   ├── serve_policy.py        起 websocket policy server
+    │   ├── loadtest.sh            权重加载自检（8010 端口、零图前向、自动关；短名同 env.sh）
     │   ├── run_rollout.py         真机主循环（30Hz、每 5 步重观测、25° 限幅、CSV）
     │   ├── run_rollout.sh         主循环启动器
     │   ├── ws_client.py           客户端（含 --self-test 自检）
@@ -86,9 +96,16 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
 
 一个终端起 server（JAX 环境、占 GPU），另一个终端跑控制循环（lerobot 环境、管机器人）。
 
-    # 终端 1：起 server（换 462 就传 462）
+    # 终端 1：起 server（短名：330 / 462 / trim330 / trim8471，或直接给 ckpt 路径）
     bash /home/kf/b601_pi05/start_serve.sh 330
+    bash /home/kf/b601_pi05/start_serve.sh trim330      # trim 版 16,942（治"零位不动"那一版）
     # 看到 READY {...} 且 ss -ltn | grep 8000 有监听即就绪
+    # 日志：/home/kf/b601_pi05/logs/serve_<ckpt名>.log
+
+    # 手动起（不想用 start_serve.sh 时）——注意 B601_REPO 必须覆盖成 ckpt 的资产目录名
+    cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
+    source env.sh && export B601_REPO=b601/v21_clean_trim_eps0_329
+    $PY serve_policy.py --ckpt /home/kf/b601_pi05/checkpoints/trim330_16942 --port 8000
 
     # 终端 2：先干跑 5 秒（不接机器人，验证时序）
     cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
@@ -102,6 +119,37 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
 
 控制循环关键参数：`--execute-steps 5`（每块执行 5 步后重观测）、`--max-step-deg 25`
 （单步限幅，0 关闭）、`--fps 30`（须与训练一致）、`--task` 用训练那条长文本。
+
+### 权重刚传过来：按这四步跑（前两步不碰机器人）
+
+以 `trim330`（16,942 步，治"零位不动"那一版）为例，**照顺序执行**：
+
+    cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
+
+    # ① 加载自检：起 8010 → 等 READY → 零图零位前向一次 → 自动关掉（不占 8000、不动电机）
+    bash loadtest.sh trim330
+    #   期望：norm_stats=OK、params_bytes≈1.24e10、READY、steady_ms≈100、LOADTEST_OK
+
+    # ② 起常驻 server（8000 端口，日志 logs/serve_trim330_16942.log）
+    bash /home/kf/b601_pi05/start_serve.sh trim330
+    grep -m1 '^READY' /home/kf/b601_pi05/logs/serve_trim330_16942.log
+
+    # ③ 干跑 5 秒（不接机器人，验 30Hz 时序与推理节拍）
+    bash run_rollout.sh 330 --dry-run --duration 5
+
+    # ④ 真机 60 秒（**不要带 --kick-deg**：这一版就是为证明它能自己起步）
+    bash run_rollout.sh 330 --duration 60
+
+**判据（④ 之后看这几项）**：
+
+| 项 | 期望 |
+|---|---|
+| 起步 | 前 3 秒内机械臂**自己动**（离线预测首帧 50 步行程 21.05°，标签 20.41°） |
+| 时序 | `--dry-run` period mean ≈ 33.3 ms、p99 ≈ 33.4 ms、推理 ≈ 100 ms/次 |
+| 记录 | CSV 在 `/home/kf/b601_pi05/logs/rollout_pi05_ws_*.csv`，`cmd_*` 与 `state_*` 并排可核对 |
+
+`loadtest.sh` 的短名与 `env.sh` 一致（`330` / `462` / `trim330` / `trim8471` / 任意 ckpt 路径），
+它会自动把 `B601_REPO` 切到该 ckpt 的资产目录 —— 这是跑 trim 版最容易踩的一步（`env.sh` 默认是 `v21_clean`）。
 
 ## 输入输出约定（重要）
 
