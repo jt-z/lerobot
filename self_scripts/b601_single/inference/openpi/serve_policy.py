@@ -30,6 +30,9 @@ def main():
     ap.add_argument("--ckpt", default=None)
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--noise-seed", type=int, default=None,
+                    help="固定 flow-matching 初始噪声（同一 seed 每个块都用同一份）。"
+                         "默认 None = 每个块重新采样（原始行为，块间会有 ~0.7° 抖动）")
     a = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -42,6 +45,25 @@ def main():
     cfg = register()
     logging.info("loading checkpoint %s", ckpt)
     policy = create_trained_policy(cfg, Path(ckpt), pytorch_device="cuda")
+
+    if a.noise_seed is not None:
+        import jax as _jax
+        logger = logging.getLogger("serve")
+        _base = policy
+
+        class _FixedNoisePolicy:
+            """每次调用前把 policy 内部 rng 重置到同一 key → 同一观测得到同一动作块。
+            比传 noise 数组好：走原 jit 路径，延迟不变（实测 89–91 ms vs 默认 90 ms）。"""
+
+            def infer(self, obs):
+                _base._rng = _jax.random.key(a.noise_seed)
+                return _base.infer(obs)
+
+        policy = _FixedNoisePolicy()
+        logger.info("FIXED flow noise(rng reset): seed=%s（同一观测→同一动作块）", a.noise_seed)
+    else:
+        logging.info("flow noise: 每块重新采样（默认行为，块间差异约 0.7°）")
+
     metadata = dict(
         model=f"b601_pi05_full_{a.model}",
         checkpoint=ckpt,

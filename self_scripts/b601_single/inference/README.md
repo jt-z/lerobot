@@ -151,6 +151,29 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
 `loadtest.sh` 的短名与 `env.sh` 一致（`330` / `462` / `trim330` / `trim8471` / 任意 ckpt 路径），
 它会自动把 `B601_REPO` 切到该 ckpt 的资产目录 —— 这是跑 trim 版最容易踩的一步（`env.sh` 默认是 `v21_clean`）。
 
+### 抖动调参：flow 噪声与重规划步数（2026-10-22 实测）
+
+`policy.infer()` 默认**每个块重新采样 flow 噪声**（`jax.random.split`），同一观测两次推理的动作块平均差 **0.68°**
+（p90 1.3–2.1°，max 4.6°）。实测在真机 rollout 里，块边界命令跳变恰好也是 **0.674°（块内的 5.2 倍）**、
+**72% 的块边界方向反转** —— 说明"原地磨"主要来自重规划噪声，而不是硬件跟随（跟随误差中位仅 0.33°）。
+
+两个可调项：
+
+    # ① 固定噪声：同一观测 → 同一动作块（确定性）。延迟不变（90ms → 89–91ms）
+    B601_NOISE_SEED=42 bash /home/kf/b601_pi05/start_serve.sh trim330
+    #   实现：每次调用前把 policy._rng 重置到同一 key（不要改成传 noise 数组，会触发重编译、首调 3.5s）
+
+    # ② 拉长重规划间隔 + 提前预取，消掉"用旧块续命"
+    bash run_rollout.sh 330 --duration 60 --execute-steps 10 --prefetch-lead 5
+
+实测 `late`（预取没赶上的步数占比）：exec 5 → **17%**；exec 10 → **7%**；exec 10 + prefetch-lead 5 可到 0。
+
+分析轨迹（跟随/摆动比/块边界抖动一次出）：
+
+    python tools/analyze_rollout.py /home/kf/b601_pi05/logs/rollout_pi05_ws_XXXX.csv
+
+> ⚠️ `--dry-run` 没有真相机（图像为零），模型输出会乱跳（块内 6.3°/步），**只能验时序与确定性，不能用来量抖动**。
+
 ## 输入输出约定（重要）
 
 - `state`：7 维、度，顺序取自机器人 `action_features`（不是手写）
