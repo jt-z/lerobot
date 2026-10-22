@@ -1,4 +1,36 @@
-# b601 单臂 π0.5 全参微调 —— z790 (4090) 推理验证包
+# b601 单臂推理包（z790 / 4090）
+
+本目录有**两条互不相通的技术栈**，先确认要跑哪一个：
+
+| 场景 | 权重格式 | 入口 |
+|---|---|---|
+| lerobot 策略：ACT / SmolVLA / π0.5-**LoRA** | lerobot `pretrained_model/` | `run_inference_ACT.sh` / `run_inference_smolvla.sh` / `run_inference_pi05.sh`（公共逻辑在 `_common.sh`） |
+| π0.5 **全参**微调（openpi / JAX） | openpi checkpoint（JAX，**不要**转成 lerobot 格式） | `serve_policy.py` + `run_pi05_ws_rollout.sh`（本文后半"路线 A"） |
+
+两者都叫 pi05，但权重、环境、启动方式完全不同：`run_inference_pi05.sh` 跑的是 lerobot LoRA adapter；
+`serve_policy.py` 跑的是 openpi 全参 checkpoint。
+
+## lerobot 路线（本机 4090 + can0 直连从臂）
+
+    bash run_inference_ACT.sh              # 默认 100k 权重
+    bash run_inference_ACT.sh a800         # 8×A800 训练 50k（462 集），不限时长
+    bash run_inference_ACT.sh A            # A/B：全量 462 集 / 50k，600 秒
+    bash run_inference_ACT.sh B            # A/B：前 330 集 / 35.5k，600 秒
+    bash run_inference_smolvla.sh          # SmolVLA 90k
+    bash run_inference_pi05.sh             # π0.5 LoRA，默认 r64 run 的 040000
+    bash run_inference_pi05.sh 038000      # 同一个 run 的别的步数
+    CKPT_ROOT=/home/kf/LX/pai0/<别的 run>/checkpoints bash run_inference_pi05.sh <步数>
+
+三个脚本依次做：环境激活 → 权重/包装器检查 → CAN/相机/校准检查 → 参数总览 → 人工确认 → `lerobot-rollout --strategy.type=base`。
+共享的硬件端口、相机路径、任务文本、`joint_directions`、日志目录全部集中在 [`_common.sh`](./_common.sh)，
+改硬件只改这一处。日志写在 `self_scripts/_logs/inference_b601_*.log`。
+
+离线动作 MAE（不接机器人、只跑策略前向）：
+
+    bash run_offline.sh 330 /home/kf/LX/pai0/b601_data/b601_v21          # 默认 ep 0 40 120
+    bash run_offline.sh 462 --anchors /home/kf/b601_pi05/anchors_6.npz   # 用锚点，不搬 22G 数据集
+
+## π0.5 全参（openpi / JAX）
 
 两个模型（JAX / openpi 格式，不是 lerobot 格式，**不需要也不建议转换**）：
 
@@ -13,7 +45,7 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
 
 ## 目录
 
-    /home/kf/b601_pi05/
+    /home/kf/b601_pi05/                    ← 权重与 JAX 环境（不在本仓库）
     ├── checkpoints/330_24653/      params + assets（12G）
     ├── checkpoints/462_34750/      同上
     ├── qgf_openpi_env/            JAX 0.5.3 venv（Python 3.11，已修软链）
@@ -25,16 +57,25 @@ z790 上实测：稳态推理 **103 ms/次**（10 步去噪 × 3 相机，4090 2
     └── logs/                      server 日志 + rollout CSV
 
     /home/kf/dev/lerobot/self_scripts/b601_single/inference/   ← 本目录
+    ├── _common.sh                 三个 lerobot 推理脚本的公共库（硬件/检查/总览/命令拼装）
+    ├── run_inference_ACT.sh       ACT（权重别名 default / a800 / A / B，或直接给路径）
+    ├── run_inference_smolvla.sh   SmolVLA
+    ├── run_inference_pi05.sh      π0.5 LoRA（CKPT_ROOT + 步数）
+    ├── run_offline.sh             离线 MAE（330 / 462）
     ├── b601_pi05_env.sh           JAX 侧环境变量（server 用）
     ├── serve_policy.py            路线 A：把权重起成 websocket policy server
     ├── pi05_ws_client.py          路线 A：客户端（含 --self-test 自检）
     ├── run_pi05_ws_rollout.py     路线 A：真机主循环（30Hz、每 5 步重观测、25° 限幅、CSV）
     ├── run_pi05_ws_rollout.sh     路线 A：启动器
-    ├── infer_offline.py           离线 MAE（与 A800 完全同口径）
+    ├── infer_offline.py           离线 MAE 的实现（与 A800 完全同口径）
     ├── infer_once.py              单帧观测 → 50 步动作块
+    ├── capture_obs.py             抓当前场景一帧观测存 npz（不动电机）
+    ├── query_chunk.py             把一份观测发给 server，看 50 步动作块结构
+    ├── watch_state.py             只读关节角，核对符号/单位
+    ├── pretrained_models/         X-VLA 推理脚本（历史放置位置）
     └── README.md
 
-## 路线 A：真机验证（当前采用）
+## 路线 A：π0.5 全参真机验证（server + 控制循环）
 
 一个终端起 server（JAX 环境、占 GPU），另一个终端跑控制循环（lerobot 环境、管机器人）。
 
