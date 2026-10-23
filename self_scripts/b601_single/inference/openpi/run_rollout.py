@@ -108,6 +108,10 @@ def main():
     ap.add_argument('--kick-steps', type=int, default=30, help='推力用几步平滑完成（30 步=1 秒）')
     ap.add_argument('--hold-break-deg', type=float, default=0.0,
                     help='卡住自救：若连续 3 个动作块行程都 <2°，就再推一次这么多度（默认 0 关闭）')
+    ap.add_argument('--prime-state', default='',
+                    help='开跑前把整臂摆到该 state 姿态（7 个逗号分隔的度，state 坐标）')
+    ap.add_argument('--prime-steps', type=int, default=60, help='摆姿态平滑用几步（60 步=2 秒）')
+    ap.add_argument('--force-prime', action='store_true', help='允许单关节变化 >30° 的摆位')
     a = ap.parse_args()
 
     cli = Pi05WSClient(a.host, a.port)
@@ -152,6 +156,25 @@ def main():
     if not a.dry_run and a.kick_deg:
         prime(robot, order, a.kick_joint, a.kick_deg, a.kick_steps, ' kick')
         time.sleep(0.5)
+
+    # 整臂摆到训练起点姿态（治"全零姿态落在训练分布外 → 策略选待机模式"）
+    if not a.dry_run and a.prime_state:
+        tgt = np.array([float(x) for x in a.prime_state.split(',')], dtype=np.float32)
+        assert len(tgt) == len(order), f'prime-state 需要 {len(order)} 个值，收到 {len(tgt)}'
+        obs = robot.get_observation()
+        s0 = state_vector(obs, order)
+        delta = tgt - s0
+        print(f'[prime-state] 当前 {np.round(s0, 1).tolist()}')
+        print(f'[prime-state] 目标 {np.round(tgt, 1).tolist()}  最大变化 {np.abs(delta).max():.1f}°')
+        if np.abs(delta).max() > 30.0 and not a.force_prime:
+            raise SystemExit('[prime-state] 单关节变化 >30°，为安全拒绝执行；确认无误请加 --force-prime')
+        for k in range(1, a.prime_steps + 1):
+            s = s0 + delta * (k / a.prime_steps)
+            robot.send_action({f'{j}.pos': float(-s[m]) for m, j in enumerate(order)})
+            time.sleep(1.0 / a.fps)
+        time.sleep(0.4)
+        s1 = state_vector(robot.get_observation(), order)
+        print(f'[prime-state] 到位 {np.round(s1, 1).tolist()}  残差 {np.abs(tgt - s1).max():.2f}°')
 
     rng = np.random.default_rng(0)
     ex = ThreadPoolExecutor(max_workers=1)
