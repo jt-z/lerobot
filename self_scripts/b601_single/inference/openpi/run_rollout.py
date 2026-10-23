@@ -113,7 +113,20 @@ def main():
                          '因首值为负，必须写成 --prime-state=-5.5,0.5,... 的等号形式')
     ap.add_argument('--prime-steps', type=int, default=60, help='摆姿态平滑用几步（60 步=2 秒）')
     ap.add_argument('--force-prime', action='store_true', help='允许单关节变化 >30° 的摆位')
-    a = ap.parse_args()
+    # argparse 会把 -5.5,... 这种以负号开头的值当成选项名 → 预处理成 --opt=value
+    def _normalize_argv(argv, opts=('--prime-state', '--kick-deg', '--hold-break-deg')):
+        out, i = [], 0
+        while i < len(argv):
+            tok = argv[i]
+            if tok in opts and i + 1 < len(argv) and argv[i + 1].startswith('-'):
+                out.append(f'{tok}={argv[i + 1]}')
+                i += 2
+                continue
+            out.append(tok)
+            i += 1
+        return out
+
+    a = ap.parse_args(_normalize_argv(sys.argv[1:]))
 
     cli = Pi05WSClient(a.host, a.port)
     print('server metadata:', cli.metadata)
