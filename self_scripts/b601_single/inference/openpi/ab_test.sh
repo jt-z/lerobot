@@ -13,6 +13,7 @@ SEED=${SEED:-42}
 CKPT=${CKPT:-trim330}
 PORT=${PORT:-8000}
 CHECK=${CHECK:-0}
+PRIME=${PRIME:-}          # 起点摆位目标：7 个逗号分隔的度（不要带 --prime-state）
 SERVE=/home/kf/b601_pi05/start_serve.sh
 LOGDIR=/home/kf/b601_pi05/logs
 PY=${PY:-/home/kf/b601_pi05/qgf_openpi_env/bin/python}
@@ -34,6 +35,7 @@ exec > >(tee -a "$RUNLOG") 2>&1
 say() { echo "[$(date +%H:%M:%S)] $*"; }
 
 say "组=$CASE 噪声=$NOISE exec=$EXEC dur=${DUR}s check=$CHECK"
+[ -n "$PRIME" ] && say "起点摆位: $PRIME"
 say "全量日志: $RUNLOG"
 say "前置检查: $(ss -ltn 2>/dev/null | grep -c ":$PORT") 个进程占用 $PORT（正常应为 1）"
 
@@ -74,7 +76,8 @@ say "✅ 预热完成"
 
 # ---------- 4. 正式跑（后台 + 进度心跳）----------
 ARGS=(--duration "$DUR")
-[ -n "${EXTRA:-}" ] && ARGS+=($EXTRA)  # 额外透传参数（如 --prime-state ...）
+[ -n "$PRIME" ] && ARGS+=("--prime-state=$PRIME")   # 必须用 = 形式，否则 -5.5 会被当成选项
+[ -n "${EXTRA:-}" ] && ARGS+=($EXTRA)           # 其它额外透传参数
 [ "$EXEC" = 10 ] && ARGS+=(--execute-steps 10 --prefetch-lead 5)
 # 关键：正式 run 在后台跑，stdin 不是终端 → 必须 --yes 跳过 ENTER 确认，否则 EOFError 秒退(exit 134)
 [ "$CHECK" = 1 ] && ARGS+=(--dry-run) || ARGS+=(--yes)

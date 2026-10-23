@@ -109,7 +109,8 @@ def main():
     ap.add_argument('--hold-break-deg', type=float, default=0.0,
                     help='卡住自救：若连续 3 个动作块行程都 <2°，就再推一次这么多度（默认 0 关闭）')
     ap.add_argument('--prime-state', default='',
-                    help='开跑前把整臂摆到该 state 姿态（7 个逗号分隔的度，state 坐标）')
+                    help='开跑前把整臂摆到该 state 姿态。7 个逗号分隔的度；'
+                         '因首值为负，必须写成 --prime-state=-5.5,0.5,... 的等号形式')
     ap.add_argument('--prime-steps', type=int, default=60, help='摆姿态平滑用几步（60 步=2 秒）')
     ap.add_argument('--force-prime', action='store_true', help='允许单关节变化 >30° 的摆位')
     a = ap.parse_args()
