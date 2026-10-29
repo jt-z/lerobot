@@ -113,6 +113,13 @@ def main():
                          '因首值为负，必须写成 --prime-state=-5.5,0.5,... 的等号形式')
     ap.add_argument('--prime-steps', type=int, default=60, help='摆姿态平滑用几步（60 步=2 秒）')
     ap.add_argument('--force-prime', action='store_true', help='允许单关节变化 >30° 的摆位')
+    ap.add_argument('--dump-obs', default='', help='把运行中某个块的观测(3 路图+state)存成 npz')
+    ap.add_argument('--dump-at', type=int, default=20, help='在第几个块抓观测（默认 20）')
+    ap.add_argument('--dump-every', type=int, default=0,
+                    help='每隔 N 个块抓一次观测，全部存进 --dump-obs 指定的 npz（0=关闭）')
+    ap.add_argument('--log-chunks', default='', help='逐块记录规划行程与实际推进的 csv')
+    ap.add_argument('--chunk-offset', type=int, default=0,
+                    help='每次换块时跳过规划前 N 步（用于抵消动作块对观测的滞后）')
     # argparse 会把 -5.5,... 这种以负号开头的值当成选项名 → 预处理成 --opt=value
     def _normalize_argv(argv, opts=('--prime-state', '--kick-deg', '--hold-break-deg')):
         out, i = [], 0
@@ -192,6 +199,12 @@ def main():
         s1 = state_vector(robot.get_observation(), order)
         print(f'[prime-state] 到位 {np.round(s1, 1).tolist()}  残差 {np.abs(tgt - s1).max():.2f}°')
 
+    dumped = False
+    snaps = []
+    chunk_fh = None
+    if a.log_chunks:
+        chunk_fh = open(a.log_chunks, 'w')
+        chunk_fh.write('chunk_id,travel_max,travel_mean,n_steps\n')
     rng = np.random.default_rng(0)
     ex = ThreadPoolExecutor(max_workers=1)
     t_start = time.perf_counter()
@@ -222,18 +235,32 @@ def main():
                 obs = robot.get_observation()
                 state = state_vector(obs, order)
                 images = image_dict(obs)
+                if a.dump_obs and a.dump_every and chunk_id % a.dump_every == 0:
+                    snaps.append((chunk_id, state.copy(),
+                                  {c: np.asarray(v) for c, v in images.items()}))
+                if a.dump_obs and chunk_id == a.dump_at and not dumped:
+                    np.savez(a.dump_obs, state=state,
+                             **{f'img_{c}': np.asarray(v) for c, v in images.items()})
+                    print(f'[dump-obs] chunk_id={chunk_id} state={np.round(state,1).tolist()} → {a.dump_obs}')
+                    dumped = True
 
             # 2) 预取：块快用完时后台发起下一次推理，主循环不等
-            if chunk is not None and fut is None and idx >= max(1, a.execute_steps - a.prefetch_lead):
+            if (chunk is not None and fut is None
+                    and idx >= a.chunk_offset + max(1, a.execute_steps - a.prefetch_lead)):
                 fut = ex.submit(cli.infer, state, images, a.task)
 
             # 3) 换块：结果就绪才切，绝不阻塞
-            if fut is not None and fut.done() and idx >= a.execute_steps:
+            if fut is not None and fut.done() and idx >= a.chunk_offset + a.execute_steps:
                 chunk = fut.result()
                 fut = None
                 chunk_id += 1
-                idx = 0
+                idx = a.chunk_offset
                 travel = float(np.max(chunk.max(0) - chunk.min(0)))
+                if chunk_fh is not None:
+                    chunk_fh.write(f'{chunk_id},{travel:.3f},'
+                                   f'{float(np.abs(chunk[-1,:7]-chunk[0,:7]).mean()):.3f},'
+                                   f'{len(chunk)}\n')
+                    chunk_fh.flush()
                 if travel < 2.0:
                     hold_chunks += 1
                 else:
@@ -249,12 +276,12 @@ def main():
             # 4) 首个块（只同步一次）
             if chunk is None:
                 chunk = cli.infer(state, images, a.task)
-                idx = 0
+                idx = a.chunk_offset
                 print(f'首个动作块 {chunk.shape}，延迟 {cli.avg_latency_ms:.0f} ms（含 JIT 编译）')
 
             # 5) 执行；块跑完但新块没到，就停在最后一步（动作不中断）
             step = min(idx, len(chunk) - 1)
-            if idx >= a.execute_steps:
+            if idx >= a.chunk_offset + a.execute_steps:
                 late_steps += 1        # 说明预取没赶上，用旧块续命
             target = chunk[step]
             if a.max_step_deg > 0:
@@ -278,6 +305,13 @@ def main():
     except KeyboardInterrupt:
         print('\nCtrl+C，停止')
     finally:
+        if a.dump_every and snaps:
+            payload = {'states': np.asarray([x[1] for x in snaps], np.float32),
+                       'chunks': np.asarray([x[0] for x in snaps], np.int32)}
+            for c in snaps[0][2]:
+                payload['img_' + c] = np.asarray([x[2][c] for x in snaps], np.uint8)
+            np.savez(a.dump_obs.replace('.npz', '') + '_seq.npz', **payload)
+            print(f'[dump-every] {len(snaps)} 帧 → ' + a.dump_obs.replace('.npz', '') + '_seq.npz')
         ex.shutdown(wait=False, cancel_futures=True)
         fh.close()
         if robot is not None:
