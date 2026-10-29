@@ -178,6 +178,8 @@ def main():
         obs = robot.get_observation()
         s0 = state_vector(obs, order)
         delta = tgt - s0
+        # GRIP_WRAP_FIX: 夹爪是 0-360 的绝对角，走最短弧（359 与 1.7 只差 2.7°）
+        delta[-1] = ((tgt[-1] - s0[-1] + 180.0) % 360.0) - 180.0
         print(f'[prime-state] 当前 {np.round(s0, 1).tolist()}')
         print(f'[prime-state] 目标 {np.round(tgt, 1).tolist()}  最大变化 {np.abs(delta).max():.1f}°')
         if np.abs(delta).max() > 30.0 and not a.force_prime:
