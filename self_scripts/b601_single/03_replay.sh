@@ -17,6 +17,10 @@
 set -e  # 遇到错误立即退出
 set -o pipefail  # 管道中任一命令失败则整体失败（配合 tee 使用）
 
+# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
+_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
+[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+
 # ==================== 环境检查 ====================
 REPLAY_CMD="${REPLAY_CMD:-lerobot-replay}"  # 也可用 python -m lerobot.scripts.lerobot_replay
 if ! command -v "${REPLAY_CMD%% *}" >/dev/null 2>&1; then

@@ -15,6 +15,10 @@
 set -e
 set -o pipefail
 
+# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
+_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
+[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+
 ROBOT_PORT="can0"        # SocketCAN 接口（PCAN-USB）
 ROBOT_ADAPTER="socketcan"
 ROBOT_ID="follower"

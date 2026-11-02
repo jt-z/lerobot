@@ -29,6 +29,10 @@
 set -e
 set -o pipefail
 
+# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
+_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
+[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+
 # ==================== 环境检查 ====================
 if ! command -v lerobot-record >/dev/null 2>&1; then
   echo "未找到 lerobot-record，尝试激活 lerobot conda 环境..."
@@ -58,7 +62,7 @@ if [ "$1" == "--resume" ]; then
     echo "❌ 错误：--resume 模式必须指定要续录的数据集完整 repo_id（带时间戳）"
     echo ""
     echo "   可用会话："
-    ls -d "$HOME/LX/pai0/b601_data"/b601_* 2>/dev/null | sed 's|.*/||' | sort
+    ls -d "${B601_DATA_ROOT:-$HOME/b601_data}"/b601_* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
     echo "   示例：bash self_scripts/b601_single/02_record.sh --resume b601_20260903_120000"
     exit 1
@@ -88,6 +92,8 @@ B601_FOLLOWER_PORT="can0"
 #     第一个有应答的才算主臂；都不应答就直接报"没找到"，不会误连到别的设备。
 #   * 手动覆盖：B601_LEADER_PORT=/dev/ttyACM0 bash self_scripts/b601_single/02_record.sh
 B601_LEADER_PORT="${B601_LEADER_PORT:-}"
+# kfzbox 本机适配：优先 udev 稳定别名（CH340 无序列号，ttyUSB* 会变）
+if [ -z "$B601_LEADER_PORT" ] && [ -e /dev/rebot_leader ]; then B601_LEADER_PORT=/dev/rebot_leader; fi
 LEADER_PORT_PROBE="$(dirname "$(readlink -f "$0")")/../b601_common/04_leader_port.py"
 
 # 从臂方向修正（必须保留，否则 shoulder_lift/gripper 被限位裁到 0 不动；
@@ -106,9 +112,23 @@ CAMERAS='{
   top: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }'
 
+# kfzbox 本机适配：若上面三路 by-id 不在这台机上（换机/换相机），按现有 3 路相机自动兜底。
+# 顺序 hand/front/top 未必正确 —— 只影响图像 key 归属，务必用 b601_common/08_cam_probe.py 核对画面。
+if [ ! -e "$(echo "$CAMERAS" | grep -o 'index_or_path: [^,]*' | head -1 | awk '{print $2}')" ]; then
+  mapfile -t _cams < <(ls /dev/v4l/by-id/*video-index0 2>/dev/null)
+  if [ "${#_cams[@]}" -eq 3 ]; then
+    CAMERAS="{hand: {type: opencv, index_or_path: ${_cams[0]}, width: 640, height: 480, fps: 30, fourcc: MJPG}, front: {type: opencv, index_or_path: ${_cams[1]}, width: 640, height: 480, fps: 30, fourcc: MJPG}, top: {type: opencv, index_or_path: ${_cams[2]}, width: 640, height: 480, fps: 30, fourcc: MJPG}}"
+    echo "⚠️  CAMERAS 自动兜底（hand/front/top 顺序未必对，先核对画面）："
+    printf '    %s\n' "${_cams[@]}"
+  elif [ "${#_cams[@]}" -gt 0 ]; then
+    echo "⚠️  找到 ${#_cams[@]} 路相机（不是 3 路），请手工改 CAMERAS"
+  fi
+fi
+
 # ==================== 数据集配置 ====================
 # 单 B601 数据根目录（新建），每个 session 存到 $DATA_ROOT/b601_<时间戳>/
-DATA_ROOT="$HOME/LX/pai0/b601_data"
+# kfzbox 本机适配：数据与代码仓分开，落在 ~/b601_data（可用 B601_DATA_ROOT 覆盖）
+DATA_ROOT="${B601_DATA_ROOT:-$HOME/b601_data}"
 mkdir -p "$DATA_ROOT"
 
 if [ -n "$RESUME_REPO_ID" ]; then
