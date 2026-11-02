@@ -76,13 +76,14 @@ def usb_path(dev: str) -> str:
         return "?"
 
 
-def recent_bandwidth_errors(n=4) -> list[str]:
+def bandwidth_errors() -> list[str]:
+    """dmesg 里的带宽类报错（历史 + 本次）；用于前后对比，避免把旧报错误报成当前故障"""
     try:
         out = subprocess.run(["sudo", "-n", "dmesg"], capture_output=True, text=True, timeout=8).stdout
     except Exception:
         return []
-    hits = [l for l in out.splitlines() if "Not enough bandwidth" in l or "No space left" in l]
-    return hits[-n:]
+    return [l for l in out.splitlines()
+            if "Not enough bandwidth" in l or "No space left" in l]
 
 
 def main() -> int:
@@ -103,6 +104,7 @@ def main() -> int:
     if not devs:
         print("❌ 没有 /dev/v4l/by-id/*video-index0")
         return 1
+    dmesg_base = len(bandwidth_errors())   # 本次运行前的历史报错条数，用来只报新增
     print(f"发现 {len(devs)} 路相机：")
     for d in devs:
         print(f"    {d}   (序列号 {short(d)})")
@@ -141,6 +143,50 @@ def main() -> int:
                 h, w = f.shape[:2]
                 print(f"✅ {role:5s} 同时打开可用  {short(path)}  实际 {w}x{h}")
                 frames[role] = (f, path)
+
+        # 持续读帧：真实采集看的不是"能打开"，而是"同时开还能一直出帧"
+        # 每路一个线程，避免串行 read 互相拖累（串行会把帧率算成最慢那路的一半）
+        if a.seconds > 0 and not degraded and len(caps) == len(targets):
+            import threading
+            print(f"\n连续读 {a.seconds:g} 秒（每路一个读线程，模拟真实采集）...")
+            n = {r: 0 for r in caps}
+            dead = set()
+            stop = threading.Event()
+            lock = threading.Lock()
+
+            def reader(role, cap, path):
+                while not stop.is_set():
+                    ok, f = cap.read()
+                    if ok and f is not None:
+                        with lock:
+                            n[role] += 1
+                            frames[role] = (f, path)      # 留最后一帧存盘
+                    else:
+                        dead.add(role)
+                        time.sleep(0.005)
+
+            t0 = time.perf_counter()
+            threads = [threading.Thread(target=reader, args=(r, c, p), daemon=True)
+                       for r, (c, p) in caps.items()]
+            for t in threads:
+                t.start()
+            time.sleep(a.seconds)
+            stop.set()
+            for t in threads:
+                t.join(timeout=2)
+            dt = time.perf_counter() - t0
+            for role in caps:
+                obs = n[role] / dt if dt else 0
+                mark = "✅" if obs >= a.fps * 0.8 else ("❌" if n[role] == 0 else "⚠️")
+                print(f"   {mark} {role:5s} {n[role]:4d} 帧 / {dt:.1f}s = {obs:5.1f} fps（目标 {a.fps}）")
+            if dead:
+                degraded = True
+                print(f"   ⚠️ 中途读帧失败: {sorted(dead)}")
+            low = [r for r in caps if n[r] / dt < a.fps * 0.8]
+            if low:
+                print("   注：帧率不到目标是两类原因 —— ① 该相机本身到不了这个帧率（先单开一路测上限）；")
+                print("       ② 同一个 Python 进程里 cv2 同时开两路会互相砍半（实测 8.6/15.0 vs 拆进程 16.6/29.7）。")
+
         for cap, _ in caps.values():
             cap.release()
 
@@ -175,7 +221,13 @@ def main() -> int:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
         out = os.path.join(a.out, f"{role}_{short(path)}.jpg")
         cv2.imwrite(out, vis, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
-        print(f"   存帧 {role:5s} -> {out}")
+        g = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)   # 用原始帧统计，别被我画上去的绿字污染
+        mean, peak = float(g.mean()), int(g.max())
+        print(f"   存帧 {role:5s} -> {out}   画面均值={mean:5.1f} 峰值={peak}")
+        if peak <= 2:
+            print(f"   ⚠️  {role} 出来的几乎是纯黑帧（峰值 {peak}）——镜头盖没摘/被挡/传感器或排线问题，不是亮度不够")
+        elif mean < 20:
+            print(f"   ⚠️  {role} 画面很暗（均值 {mean:.1f}）——补光或调 exposure")
 
     if len(frames) == 2:
         import numpy as np
@@ -226,17 +278,21 @@ def main() -> int:
         finally:
             cv2.destroyAllWindows()
 
-    # ---------- 带宽/诊断 ----------
-    errs = recent_bandwidth_errors()
-    if degraded or errs:
-        print("\n诊断：")
+    # ---------- 带宽/诊断（只在本次真的失败时才报，且只列本次新增的 dmesg） ----------
+    errs = bandwidth_errors()[dmesg_base:]
+    if degraded:
+        print("\n诊断（本次运行新出现的带宽报错）：")
         print(f"   hand 在 USB 树上的位置: {usb_path(hand_path) if hand_path else '-'}")
         print(f"   top  在 USB 树上的位置: {usb_path(top_path) if top_path else '-'}")
         for e in errs:
             print(f"   dmesg: {e}")
-        print("   若两路挂在同一条 USB2 集线器链上（1-10.x.x），同时开就抢同一份等时带宽。")
-        print("   解法：把其中一路换到机箱另一个 USB 口（别共用同一个扩展坞/hub），")
+        if not errs:
+            print("   dmesg 无新增带宽报错，可能是相机/线材本身问题（换线、换口各试一次）")
+        print("   若两路挂在同一条 USB2 集线器链上（1-10.x.x 这种），同时开就抢同一份等时带宽。")
+        print("   解法：把其中一路换到机箱另一个 USB 口（别再共用同一个扩展坞/hub），")
         print("        然后重跑本脚本；仍不行就降分辨率/帧率（--width 352 --height 288 --fps 15）。")
+    else:
+        print("   同时开两路：正常，没有新增带宽报错（这台不用再动插口）")
 
     print(f"\n完成：{len(frames)}/2 路出帧。核对画面归属后把序列号填进 "
           f"self_scripts/b601_common/devices/kfzbox.sh 的 B601_CAM_HAND / B601_CAM_TOP")
