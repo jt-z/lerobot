@@ -9,7 +9,7 @@
 |---|---|
 | 代码仓 | `~/dev/lerobot`（分支 `mywork`，与 z790 同一份：rsync 自 `/home/kf/dev/lerobot`，不含 `model_weights/`） |
 | 运行环境 | `~/dev/miniforge3/envs/lerobot_b601`（python 3.12.13 / torch 2.11.0+cu128 / lerobot 0.6.2） |
-| 环境入口 | `self_scripts/b601_common/_env_kfzbox.sh`（所有入口脚本自动 source，无需手动 conda activate） |
+| 环境入口 | `self_scripts/b601_common/_env.sh` → 自动选 `devices/kfzbox.sh`（按 hostname；`B601_DEVICE=kfzbox` 可强制）。`_env_kfzbox.sh` 只是兼容壳，无需手动 conda activate |
 | 数据根 | `~/b601_data`（`B601_DATA_ROOT` 可覆盖；与代码仓分开，避免数据进 git） |
 | 旧仓 | `~/dev/lerobot.dev-lerobot`（0.4.4 / `jt-z/lerobot-v0.4`，暂时改名保留，`mv` 回去即还原） |
 
@@ -62,3 +62,23 @@ bash self_scripts/b601_common/09_gateway.sh start      # MotorBridge Gateway（S
 cd ~/dev/lerobot && git checkout -- self_scripts/        # 撤销本机适配（新增文件用 rm）
 rm -rf ~/dev/lerobot && mv ~/dev/lerobot.dev-lerobot ~/dev/lerobot   # 整仓回到 0.4.4
 ```
+
+## 六、设备参数层（2026-11-02 建立）
+
+两台机器（z790 / kfzbox）共用同一份代码，**差异只在参数**，全部集中在：
+
+| 文件 | 内容 |
+|---|---|
+| `b601_common/_env.sh` | 统一入口：按 `hostname` 选设备档案、解析主臂串口、激活环境（conda env 或目录前缀） |
+| `b601_common/devices/_defaults.sh` | 通用项：CAN 接口/波特率、相机分辨率帧率、主臂候选串口、`b601_cameras_json()` |
+| `b601_common/devices/z790.sh` | z790：conda env `lerobot`、数据根 `~/LX/pai0/b601_data`、主臂 `/dev/ttyUSB0`、相机 2608076/2607031/2607060 |
+| `b601_common/devices/kfzbox.sh` | 本机：环境 `~/dev/miniforge3/envs/lerobot_b601`、数据根 `~/b601_data`、主臂 `/dev/rebot_leader` 优先、相机角色待定 |
+
+换相机 / 换主臂 / 换数据盘时**只改本机 `devices/kfzbox.sh` 一行**，不要动入口脚本，也不要建分支。
+
+本机相机实测（2026-11-02）：只有 2 路在插 —— 2609010 / 2610057，第三路未接；角色（hand/front/top）
+未确认，`_defaults.sh` 会按现有相机顺序兜底并告警。确认方法：`python self_scripts/b601_common/08_cam_probe.py`，
+看图后把序列号填进 `devices/kfzbox.sh` 的 `B601_CAM_HAND/FRONT/TOP`，填齐后即为严格绑定。
+
+临时覆盖（不改文件）：`B601_DEVICE=z790`、`B601_CAM_TOP=2609007`、`B601_DATA_ROOT=/data/xx` 等
+任一 `B601_*` 变量都可以放在命令前。
