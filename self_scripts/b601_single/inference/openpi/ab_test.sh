@@ -12,6 +12,8 @@ DUR=${DUR:-60}
 SEED=${SEED:-42}
 CKPT=${CKPT:-trim330}
 PORT=${PORT:-8000}
+EXECN=${EXECN:-}            # 覆盖执行步数（如 25/50），留空用组默认
+LEADN=${LEADN:-}            # 覆盖预取提前量；留空按下式自动：exec10→5
 CHECK=${CHECK:-0}
 PRIME=${PRIME:-}          # 起点摆位目标：7 个逗号分隔的度（不要带 --prime-state）
 SERVE=/home/kf/b601_pi05/start_serve.sh
@@ -34,7 +36,7 @@ NOISE_SEED_USED="-"; [ "$NOISE" = fixed ] && NOISE_SEED_USED=$SEED
 exec > >(tee -a "$RUNLOG") 2>&1
 say() { echo "[$(date +%H:%M:%S)] $*"; }
 
-say "组=$CASE 噪声=$NOISE exec=$EXEC dur=${DUR}s check=$CHECK"
+say "组=$CASE 噪声=$NOISE exec=$EXEC lead=${LEAD:-auto} dur=${DUR}s check=$CHECK"
 [ -n "$PRIME" ] && say "起点摆位: $PRIME"
 say "全量日志: $RUNLOG"
 say "前置检查: $(ss -ltn 2>/dev/null | grep -c ":$PORT") 个进程占用 $PORT（正常应为 1）"
@@ -78,7 +80,9 @@ say "✅ 预热完成"
 ARGS=(--duration "$DUR")
 [ -n "$PRIME" ] && ARGS+=("--prime-state=$PRIME")   # 必须用 = 形式，否则 -5.5 会被当成选项
 [ -n "${EXTRA:-}" ] && ARGS+=($EXTRA)           # 其它额外透传参数
-[ "$EXEC" = 10 ] && ARGS+=(--execute-steps 10 --prefetch-lead 5)
+[ -n "$EXECN" ] && EXEC=$EXECN
+LEAD=${LEADN:-$(( (EXEC + 1) / 2 ))}   # exec10→5, exec25→13, exec50→25
+ARGS+=(--execute-steps "$EXEC" --prefetch-lead "$LEAD")
 # 关键：正式 run 在后台跑，stdin 不是终端 → 必须 --yes 跳过 ENTER 确认，否则 EOFError 秒退(exit 134)
 [ "$CHECK" = 1 ] && ARGS+=(--dry-run) || ARGS+=(--yes)
 if [ "$CHECK" = 1 ]; then say "⚠️ CHECK=1：dry-run，机器人不会动"; fi
