@@ -42,3 +42,66 @@ episode 122之后： front摄像头又被碰歪了
 如果想在前台运行并查看日志，直接这样执行；如果想挂到后台，就在命令末尾加 &，或另开一个 tmux 窗口。
 
 终止 fuser -k -n tcp 8090
+
+
+# ---
+
+
+cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
+
+CKPT=trim2pass DUR=20 SEED=99 EXECN=50 LEADN=5 \
+PRIME="-1.6,0.9,0.3,1.9,-1.7,1.3,0.0" \
+EXTRA="--max-step-deg 12" \
+bash ab_test.sh D
+
+
+
+# ---
+
+CKPT=trim2pass DUR=70 SEED=99 EXECN=50 LEADN=5 \
+PRIME="-1.6,0.9,0.3,1.9,-1.7,1.3,0.0" \
+EXTRA="--max-step-deg 40" \
+bash ab_test.sh D
+
+
+# ------ 
+
+cd /home/kf/dev/lerobot/self_scripts/b601_single/inference/openpi
+
+# 先做不动机器的流程检查：
+CKPT=aligned462 CHECK=1 DUR=20 SEED=99 \
+PRIME="-1.6,0.9,0.3,1.9,-1.7,1.3,359.0" \
+EXTRA="--max-step-deg 12" \
+bash ab_test.sh D
+
+# 然后真实运行：
+CKPT=aligned462 DUR=20 SEED=99 EXECN=10 LEADN=5 \
+PRIME="-1.6,0.9,0.3,1.9,-1.7,1.3,359.0" \
+EXTRA="--max-step-deg 12" \
+bash ab_test.sh D
+
+
+# 然后真实运行： 执行多，时长多，角度大：
+CKPT=aligned462 DUR=200 SEED=99 EXECN=40 LEADN=5 \
+PRIME="-1.6,0.9,0.3,1.9,-1.7,1.3,359.0" \
+EXTRA="--max-step-deg 25" \
+bash ab_test.sh D
+
+
+# 只替换 CKPT，依次测试：
+aligned462
+462
+trim2pass
+lr36k
+lr60k
+trim330
+330
+lr24k
+lr48k
+
+
+# 相机，前130左右的视角， lr 36k 可以成功执行一次完整的任务。
+# CKPT=lr36k  DUR=200 SEED=99 EXECN=40 LEADN=5 PRIME="-1.6,0.9,0.3,1.9,-1.7,1.3,359.0" EXTRA="--max-step-deg 40" bash ab_test.sh D
+
+# 相机动了，现在需要重新调整，放在最常见的主要相机视角分布比较好。 然后重新验证不同的推理权重的效果
+

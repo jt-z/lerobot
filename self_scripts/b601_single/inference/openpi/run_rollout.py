@@ -46,6 +46,14 @@ CAM_DEFAULT = {
 }
 DIRS_DEFAULT = {j: -1.0 for j in JOINTS}
 
+# 旧 B601 数据集的 action 与电机反馈 state 使用相反符号；action-aligned
+# checkpoint 则直接输出 state/motor 坐标。具体模式由 policy server metadata 声明。
+# 夹爪反馈由驱动规约到 [0, 360)，但可执行物理区间是 [0, 270]；接近 360°
+# 的反馈等价于闭合端 0°。限幅前需先投影回这一区间，避免把 359°→0°误判为 359°跳变。
+GRIPPER_MIN_DEG = 0.0
+GRIPPER_MAX_DEG = 270.0
+GRIPPER_TURN_DEG = 360.0
+
 
 def build_robot(can_port: str, cameras: dict):
     from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
@@ -87,6 +95,48 @@ def image_dict(obs: dict) -> dict:
     return out
 
 
+def state_to_action_coordinates(
+    state: np.ndarray,
+    order: list[str],
+    action_coordinates: str,
+) -> np.ndarray:
+    """把电机反馈 state 转成当前 checkpoint 的 action 坐标。
+
+    旧 checkpoint 使用 ``current_action = -state``；aligned checkpoint 使用
+    ``current_action = state``。夹爪是单圈绝对编码器：合法上限 270°以上的反馈
+    先投影到更近的端点（270°或 360°≡0°）。
+    """
+    state_for_limit = np.asarray(state, dtype=np.float32).copy()
+    if 'gripper' in order:
+        gripper_idx = order.index('gripper')
+        gripper_state = float(state_for_limit[gripper_idx]) % GRIPPER_TURN_DEG
+        if gripper_state > GRIPPER_MAX_DEG:
+            distance_to_open = gripper_state - GRIPPER_MAX_DEG
+            distance_to_closed = GRIPPER_TURN_DEG - gripper_state
+            gripper_state = (
+                GRIPPER_MIN_DEG
+                if distance_to_closed < distance_to_open
+                else GRIPPER_MAX_DEG
+            )
+        state_for_limit[gripper_idx] = gripper_state
+    return state_for_limit if action_coordinates == 'state' else -state_for_limit
+
+
+def limit_action_target(
+    target: np.ndarray,
+    state: np.ndarray,
+    max_step_deg: float,
+    order: list[str],
+    action_coordinates: str,
+) -> np.ndarray:
+    """在 action 坐标系内限制相对当前物理姿态的单步目标变化。"""
+    target = np.asarray(target, dtype=np.float32)
+    if max_step_deg <= 0:
+        return target.copy()
+    current_action = state_to_action_coordinates(state, order, action_coordinates)
+    return current_action + np.clip(target - current_action, -max_step_deg, max_step_deg)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--host', default='127.0.0.1')
@@ -99,6 +149,8 @@ def main():
     ap.add_argument('--duration', type=float, default=0.0, help='0 = 不限，跑到 Ctrl+C')
     ap.add_argument('--task', default=TASK_DEFAULT)
     ap.add_argument('--max-step-deg', type=float, default=25.0, help='单步目标相对当前位姿的限幅，0=关闭')
+    ap.add_argument('--action-coordinates', choices=('auto', 'legacy', 'state'), default='auto',
+                    help='action 坐标：auto 按 server metadata；legacy=旧 action≈-state；state=对齐版 action≈state')
     ap.add_argument('--log-dir', default='/home/kf/b601_pi05/logs')
     ap.add_argument('--dry-run', action='store_true', help='不接机器人，用合成观测跑主循环')
     ap.add_argument('--yes', action='store_true', help='跳过 ENTER 确认')
@@ -137,6 +189,12 @@ def main():
 
     cli = Pi05WSClient(a.host, a.port)
     print('server metadata:', cli.metadata)
+    metadata_coordinates = str(cli.metadata.get('action_coordinates', 'legacy'))
+    action_coordinates = metadata_coordinates if a.action_coordinates == 'auto' else a.action_coordinates
+    if action_coordinates not in ('legacy', 'state'):
+        raise SystemExit(f'未知 action_coordinates={action_coordinates!r}')
+    print(f'action 坐标模式: {action_coordinates} '
+          f'({"server metadata" if a.action_coordinates == "auto" else "CLI override"})')
 
     robot = None
     order = list(JOINTS)
@@ -284,11 +342,13 @@ def main():
             if idx >= a.chunk_offset + a.execute_steps:
                 late_steps += 1        # 说明预取没赶上，用旧块续命
             target = chunk[step]
-            if a.max_step_deg > 0:
-                target = state + np.clip(target - state, -a.max_step_deg, a.max_step_deg)
+            target = limit_action_target(target, state, a.max_step_deg, order, action_coordinates)
 
             if not a.dry_run:
-                robot.send_action({f'{j}.pos': float(target[i]) for i, j in enumerate(order)})
+                # 驱动的 joint_directions 全为 -1。旧策略输出可直接交给驱动；
+                # aligned 策略输出的是 motor/state 坐标，交给驱动前转换回其逻辑输入坐标。
+                driver_target = -target if action_coordinates == 'state' else target
+                robot.send_action({f'{j}.pos': float(driver_target[i]) for i, j in enumerate(order)})
 
             period_ms = (now - prev_t) * 1000.0
             prev_t = now

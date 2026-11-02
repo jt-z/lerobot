@@ -64,6 +64,9 @@ def main():
     else:
         logging.info("flow noise: 每块重新采样（默认行为，块间差异约 0.7°）")
 
+    action_coordinates = (
+        "state" if os.environ.get("B601_REPO", "").endswith("_action_aligned") else "legacy"
+    )
     metadata = dict(
         model=f"b601_pi05_full_{a.model}",
         checkpoint=ckpt,
@@ -72,7 +75,12 @@ def main():
         state_dim=7,
         action_dim=7,
         cameras=["front", "hand", "top"],
-        action_note="action 使用数据集原有负号约定（action ≈ -state），单位：度",
+        action_coordinates=action_coordinates,
+        action_note=(
+            "action 与电机反馈 state 同坐标（action ≈ state），单位：度"
+            if action_coordinates == "state"
+            else "action 使用旧数据集负号约定（action ≈ -state），单位：度"
+        ),
         fps=30,
     )
     server = WebsocketPolicyServer(policy, host=a.host, port=a.port, metadata=metadata)
