@@ -24,9 +24,9 @@
 set -e
 set -o pipefail
 
-# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
-_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
-[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+# 设备参数层 (2026-11-02)：按主机名自动选 b601_common/devices/<host>.sh（B601_DEVICE 可覆盖）
+_B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
+[ -f "$_B601_ENV" ] && . "$_B601_ENV"
 
 # ==================== 硬件配置 ====================
 FOLLOWER_ID="follower"          # 对应校准文件 seeed_b601_rs_follower/follower.json
@@ -42,15 +42,8 @@ GRAVITY_COMPENSATION=true
 FOLLOWER_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
 
 # 主臂 = StarArm102（CH340 无序列号）
-# kfzbox 本机适配：优先 udev 稳定别名 /dev/rebot_leader
-#   (/etc/udev/rules.d/99-rebot-leader.rules，按 1a86:7523 建 SYMLINK)
-LEADER_PORT="${B601_LEADER_PORT:-}"
-if [ -z "$LEADER_PORT" ]; then
-  for cand in /dev/rebot_leader /dev/serial/by-id/usb-1a86_USB_Serial*-if00-port0 /dev/ttyUSB* /dev/ttyACM*; do
-    [ -e "$cand" ] && LEADER_PORT="$cand" && break
-  done
-fi
-LEADER_PORT="${LEADER_PORT:-/dev/ttyUSB0}"
+# 主臂串口：由设备档案解析（kfzbox=udev 别名优先，z790=固定 ttyUSB0）
+LEADER_PORT="${B601_LEADER_PORT:-/dev/ttyUSB0}"
 
 echo "=========================================="
 echo "单臂遥操作测试：B601-RS + StarArm102"

@@ -2,7 +2,7 @@
 # B601 上机前体检（kfzbox 版）：环境 / CAN / 电机 / 主臂串口 / 相机 / 标定文件
 # 用法：bash self_scripts/b601_common/07_preflight.sh
 set -uo pipefail
-. "$(dirname "$(readlink -f "$0")")/_env_kfzbox.sh"
+. "$(dirname "$(readlink -f "$0")")/_env.sh"
 HERE="$(dirname "$(readlink -f "$0")")"
 
 ok(){   printf "  \033[32m✅\033[0m %s\n" "$1"; }
@@ -26,32 +26,32 @@ PY
 
 echo
 echo "2) CAN 接口"
-if ip link show can0 >/dev/null 2>&1; then
-  info=$(ip -details link show can0 2>/dev/null)
+if ip link show "$B601_FOLLOWER_PORT" >/dev/null 2>&1; then
+  info=$(ip -details link show "$B601_FOLLOWER_PORT" 2>/dev/null)
   if echo "$info" | grep -q "state UP"; then ok "can0 UP"
   else
     warn "can0 未 UP，配置 1Mbps..."
-    sudo ip link set can0 down 2>/dev/null
-    sudo ip link set can0 type can bitrate 1000000
-    sudo ip link set can0 up
-    ip -details link show can0 | grep -q "state UP" && ok "can0 已配好 (1Mbps)" || bad "can0 配置失败"
+    sudo ip link set "$B601_FOLLOWER_PORT" down 2>/dev/null
+    sudo ip link set "$B601_FOLLOWER_PORT" type can bitrate 1000000
+    sudo ip link set "$B601_FOLLOWER_PORT" up
+    ip -details link show "$B601_FOLLOWER_PORT" | grep -q "state UP" && ok "can0 已配好 (1Mbps)" || bad "can0 配置失败"
   fi
-  ip -details link show can0 2>/dev/null | grep -q "bitrate 1000000" && ok "bitrate=1Mbps" || warn "bitrate 不是 1000000"
+  ip -details link show "$B601_FOLLOWER_PORT" 2>/dev/null | grep -q "bitrate 1000000" && ok "bitrate=1Mbps" || warn "bitrate 不是 1000000"
 else
   bad "没有 can0 —— PCAN-USB 没插 / peak_usb 没加载 (lsusb | grep -i peak)"
 fi
 
 echo
 echo "3) 从臂电机 (RobStride id 1..7)"
-if ip link show can0 2>/dev/null | grep -q "state UP"; then
-  found=$(timeout 40 "$B601_ENV/bin/motorbridge-cli" scan --vendor robstride --channel can0 --start-id 1 --end-id 7 2>&1 | grep -c "device_id=")
+if ip link show "$B601_FOLLOWER_PORT" 2>/dev/null | grep -q "state UP"; then
+  found=$(timeout 40 "$B601_ENV/bin/motorbridge-cli" scan --vendor robstride --channel "$B601_FOLLOWER_PORT" --start-id 1 --end-id 7 2>&1 | grep -c "device_id=")
   echo "  扫到 ${found} / 7 个电机"
   if [ "${found:-0}" -eq 7 ]; then
     ok "7 个电机全在线（成品套件，不要重写 ID）"
   else
-    rx1=$(cat /sys/class/net/can0/statistics/rx_packets 2>/dev/null || echo 0)
+    rx1=$(cat /sys/class/net/$B601_FOLLOWER_PORT/statistics/rx_packets 2>/dev/null || echo 0)
     sleep 3
-    rx2=$(cat /sys/class/net/can0/statistics/rx_packets 2>/dev/null || echo 0)
+    rx2=$(cat /sys/class/net/$B601_FOLLOWER_PORT/statistics/rx_packets 2>/dev/null || echo 0)
     if [ "$((rx2 - rx1))" -eq 0 ]; then
       bad "总线上 0 报文 —— 从臂大概率【没上电】(48V 开关)，不是代码问题"
     else

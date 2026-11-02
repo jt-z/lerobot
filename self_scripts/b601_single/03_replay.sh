@@ -17,9 +17,9 @@
 set -e  # 遇到错误立即退出
 set -o pipefail  # 管道中任一命令失败则整体失败（配合 tee 使用）
 
-# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
-_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
-[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+# 设备参数层 (2026-11-02)：按主机名自动选 b601_common/devices/<host>.sh（B601_DEVICE 可覆盖）
+_B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
+[ -f "$_B601_ENV" ] && . "$_B601_ENV"
 
 # ==================== 环境检查 ====================
 REPLAY_CMD="${REPLAY_CMD:-lerobot-replay}"  # 也可用 python -m lerobot.scripts.lerobot_replay
@@ -82,11 +82,9 @@ export LEROBOT_RERUN_MEMORY_LIMIT="${LEROBOT_RERUN_MEMORY_LIMIT:-30%}"
 # 但开了 rerun 显示就必须开相机，否则没有画面可显示。
 USE_CAMERAS=0
 if [ "$USE_RERUN" = "1" ]; then USE_CAMERAS=1; fi
-CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  front: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  top: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
-}'
+# 相机：角色→序列号来自设备档案；缺失时由 b601_cameras_json 兜底并提示
+CAMERAS="$(b601_cameras_json)"
+
 
 # ==================== kfinfer前检查 ====================
 # 1) 数据集

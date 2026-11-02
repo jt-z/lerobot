@@ -29,9 +29,9 @@
 set -e
 set -o pipefail
 
-# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
-_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
-[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+# 设备参数层 (2026-11-02)：按主机名自动选 b601_common/devices/<host>.sh（B601_DEVICE 可覆盖）
+_B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
+[ -f "$_B601_ENV" ] && . "$_B601_ENV"
 
 # ==================== 环境检查 ====================
 if ! command -v lerobot-record >/dev/null 2>&1; then
@@ -106,29 +106,13 @@ B601_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.
 #   top = JYU2C 2607060（顶部相机；原 icSpring 202404160005 实测仅 20fps
 #         且会掉到 10fps，JYU2C 稳定 29.7fps，故换为 JYU2C）
 # 路径用 /dev/v4l/by-id 稳定路径。
-CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  front: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  top: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
-}'
-
-# kfzbox 本机适配：若上面三路 by-id 不在这台机上（换机/换相机），按现有 3 路相机自动兜底。
-# 顺序 hand/front/top 未必正确 —— 只影响图像 key 归属，务必用 b601_common/08_cam_probe.py 核对画面。
-if [ ! -e "$(echo "$CAMERAS" | grep -o 'index_or_path: [^,]*' | head -1 | awk '{print $2}')" ]; then
-  mapfile -t _cams < <(ls /dev/v4l/by-id/*video-index0 2>/dev/null)
-  if [ "${#_cams[@]}" -eq 3 ]; then
-    CAMERAS="{hand: {type: opencv, index_or_path: ${_cams[0]}, width: 640, height: 480, fps: 30, fourcc: MJPG}, front: {type: opencv, index_or_path: ${_cams[1]}, width: 640, height: 480, fps: 30, fourcc: MJPG}, top: {type: opencv, index_or_path: ${_cams[2]}, width: 640, height: 480, fps: 30, fourcc: MJPG}}"
-    echo "⚠️  CAMERAS 自动兜底（hand/front/top 顺序未必对，先核对画面）："
-    printf '    %s\n' "${_cams[@]}"
-  elif [ "${#_cams[@]}" -gt 0 ]; then
-    echo "⚠️  找到 ${#_cams[@]} 路相机（不是 3 路），请手工改 CAMERAS"
-  fi
-fi
+# 相机：角色→序列号来自设备档案；缺失时由 b601_cameras_json 兜底并提示
+CAMERAS="$(b601_cameras_json)"
 
 # ==================== 数据集配置 ====================
 # 单 B601 数据根目录（新建），每个 session 存到 $DATA_ROOT/b601_<时间戳>/
 # kfzbox 本机适配：数据与代码仓分开，落在 ~/b601_data（可用 B601_DATA_ROOT 覆盖）
-DATA_ROOT="${B601_DATA_ROOT:-$HOME/b601_data}"
+DATA_ROOT="${B601_DATA_ROOT}"
 mkdir -p "$DATA_ROOT"
 
 if [ -n "$RESUME_REPO_ID" ]; then

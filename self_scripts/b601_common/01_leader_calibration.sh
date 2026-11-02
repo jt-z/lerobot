@@ -12,9 +12,9 @@
 set -e
 set -o pipefail
 
-# kfzbox 本机适配 (2026-10-29)：环境入口见 b601_common/_env_kfzbox.sh
-_KFZ_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env_kfzbox.sh"
-[ -f "$_KFZ_ENV" ] && . "$_KFZ_ENV"
+# 设备参数层 (2026-11-02)：按主机名自动选 b601_common/devices/<host>.sh（B601_DEVICE 可覆盖）
+_B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
+[ -f "$_B601_ENV" ] && . "$_B601_ENV"
 
 # 主臂串口自动探测（与 02_record.sh 口径一致）：
 #   ttyUSB*/ttyACM* 编号随插拔顺序/驱动变化（本机实测同一适配器会在 ttyUSB0 与 ttyACM0
