@@ -44,7 +44,8 @@ CAN_BITRATE="${B601_CAN_BITRATE:-1000000}"
 GRAVITY_COMPENSATION="${B601_GRAVITY_COMPENSATION:-true}"
 # 从臂关节方向修正（实测值，必须保留，否则 shoulder_lift/gripper 会被限位裁到 0 不动；
 # 某台臂装反或换过电机，就在该机的 devices/<host>.sh 里覆盖 B601_JOINT_DIRECTIONS）
-FOLLOWER_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}}"
+FOLLOWER_JOINT_DIRECTIONS_DEFAULT='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
+FOLLOWER_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-$FOLLOWER_JOINT_DIRECTIONS_DEFAULT}"
 
 # 主臂 = StarArm102（CH340 无序列号）
 # 主臂串口：由设备档案解析（kfzbox=udev 别名优先，z790=固定 ttyUSB0）
