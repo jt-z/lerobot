@@ -78,11 +78,11 @@ echo "=========================================="
 echo ""
 
 # ==================== 硬件配置 ====================
-FOLLOWER_ID="follower"   # 从臂校准 id（对应 seeed_b601_rs_follower/follower.json，02 脚本生成）
-LEADER_ID="leader"       # 主臂校准 id（对应 rebot_102_leader/leader.json，01 脚本生成）
+FOLLOWER_ID="${B601_FOLLOWER_ID:-follower}"   # 从臂校准 id（对应 seeed_b601_rs_follower/<id>.json，02 脚本生成）
+LEADER_ID="${B601_LEADER_ID:-leader}"         # 主臂校准 id（对应 rebot_102_leader/<id>.json，01 脚本生成）
 
-# B601 从臂 = can0（SocketCAN）
-B601_FOLLOWER_PORT="can0"
+# B601 从臂 = can0（SocketCAN）—— 由设备档案决定，可用 B601_FOLLOWER_PORT 覆盖
+B601_FOLLOWER_PORT="${B601_FOLLOWER_PORT:-can0}"
 # StarArm102 主臂串口：**自动探测**（参考 so101_bimanual/inference/old_dataset/run_inference_cap_pen_ACT_300k.sh 的思路）。
 #   * 为什么不写死 /dev/ttyUSB0：ttyUSB*/ttyACM* 的编号随插拔顺序和驱动变化 —— 本机实测
 #     同一个主臂适配器会在 ttyUSB0 与 ttyACM0 之间变名（09-14 / 09-15 各出现过一次），
@@ -97,8 +97,8 @@ if [ -z "$B601_LEADER_PORT" ] && [ -e /dev/rebot_leader ]; then B601_LEADER_PORT
 LEADER_PORT_PROBE="$(dirname "$(readlink -f "$0")")/../b601_common/04_leader_port.py"
 
 # 从臂方向修正（必须保留，否则 shoulder_lift/gripper 被限位裁到 0 不动；
-# 与 03/04 脚本的 B601 左臂一致）
-B601_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
+# 与 03/04 脚本的 B601 左臂一致；某台臂装反就在该机 devices/<host>.sh 里覆盖）
+B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}}"
 
 # ==================== 摄像头配置 ====================
 # 3 路相机（B601 从臂，无 left_/right_ 前缀）：

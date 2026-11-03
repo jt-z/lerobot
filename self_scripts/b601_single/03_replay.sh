@@ -54,14 +54,14 @@ EPISODE=0   # 要kfinfer的 episode 序号
 FPS=30      # 与采集一致（实际以数据集 meta 里的 fps 为准）
 
 # ==================== 硬件配置 ====================
-# B601 从臂 = can0（SocketCAN，PEAK PCAN-USB，1Mbps 经典 CAN）
-B601_FOLLOWER_PORT="can0"
-FOLLOWER_ID="follower"   # 与采集时一致（校准文件 seeed_b601_rs_follower/follower.json）
+# B601 从臂 = can0（SocketCAN，PEAK PCAN-USB，1Mbps 经典 CAN）—— 由设备档案决定
+B601_FOLLOWER_PORT="${B601_FOLLOWER_PORT:-can0}"
+FOLLOWER_ID="${B601_FOLLOWER_ID:-follower}"   # 与采集时一致（校准文件 seeed_b601_rs_follower/<id>.json）
 
 # 方向修正：必须与采集（self_scripts/b601_single/02_record.sh）完全一致，全 -1.0。
 # 原因：seeed_b601_rs_follower.send_action 先对每个关节乘 joint_directions
 #       （缺失关节默认 0.0，会把目标裁到 0 不动），kfinfer动作与录制动作必须同坐标系。
-B601_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}'
+B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}}"
 
 # 重放时是否把 observation.state + 三路相机画面实时送到 rerun 显示。
 #   注意：lerobot 自带的 lerobot-replay **没有任何显示选项**（配置只有 robot/dataset/play_sounds），
