@@ -44,8 +44,13 @@ fi
 echo
 echo "3) 从臂电机 (RobStride id 1..7)"
 if ip link show "$B601_FOLLOWER_PORT" 2>/dev/null | grep -q "state UP"; then
-  found=$(timeout 40 "$B601_ENV/bin/motorbridge-cli" scan --vendor robstride --channel "$B601_FOLLOWER_PORT" --start-id 1 --end-id 7 2>&1 | grep -c "device_id=")
-  echo "  扫到 ${found} / 7 个电机"
+  scan_out=$(timeout 40 "$B601_ENV/bin/motorbridge-cli" scan --vendor robstride --channel "$B601_FOLLOWER_PORT" --start-id 1 --end-id 7 2>&1)
+  # 注意：scan 对每个电机会打印两行（[hit] 明细 + 末尾汇总），grep -c 会得到 2 倍，
+  # 所以优先取 "scan done: N motor(s) found" 汇总行，取不到才退回 device_id 去重计数。
+  found=$(printf "%s\n" "$scan_out" | sed -n "s/.*scan done: \([0-9][0-9]*\) motor(s).*/\1/p" | tail -1)
+  [ -z "$found" ] && found=$(printf "%s\n" "$scan_out" | grep -o "device_id=[0-9]*" | sort -u | wc -l)
+  found_ids=$(printf "%s\n" "$scan_out" | grep -o "probe=0x[0-9A-Fa-f]*" | sed "s/probe=//" | sort -u | tr "\n" " ")
+  echo "  扫到 ${found} / 7 个电机${found_ids:+  在线: $found_ids}"
   if [ "${found:-0}" -eq 7 ]; then
     ok "7 个电机全在线（成品套件，不要重写 ID）"
   else
