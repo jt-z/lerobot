@@ -14,9 +14,12 @@ export B601_DATA_ROOT="${B601_DATA_ROOT:-$HOME/b601_data}"
 export B601_LEADER_PORT="${B601_LEADER_PORT:-}"
 export B601_LEADER_CANDIDATES="${B601_LEADER_CANDIDATES:-/dev/rebot_leader /dev/serial/by-id/usb-1a86_USB_Serial*-if00-port0 /dev/ttyUSB* /dev/ttyACM*}"
 
-# ---- 臂标定 id：与 z790 区分开（标定文件按 id 命名，两台必须各有一份零位）----
-export B601_FOLLOWER_ID="${B601_FOLLOWER_ID:-follower_kfzbox}"
-export B601_LEADER_ID="${B601_LEADER_ID:-leader_kfzbox}"
+# ---- 臂标定 id ----
+# 实测两台的 B601 从臂 / StarArm102 主臂基本一致，且臂不需要每台各校一次：
+# 两台共用一份默认标定（follower / leader），默认值在 devices/_defaults.sh + _env.sh 里。
+# 若将来某台臂明显偏（换过电机/被拆装过），再取消下面两行注释、单独校一份。
+# export B601_FOLLOWER_ID="${B601_FOLLOWER_ID:-follower_kfzbox}"
+# export B601_LEADER_ID="${B601_LEADER_ID:-leader_kfzbox}"
 
 # ---- 相机（2026-11-02 实测：两路 JYU2C，镜头盖已摘，单开都 29.7fps）----
 #   画面判定：2609010 能看到整个工作台/工具 → top；2610057 贴近机械臂本体 → hand

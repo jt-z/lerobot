@@ -12,8 +12,9 @@ export B601_FOLLOWER_ADAPTER="${B601_FOLLOWER_ADAPTER:-socketcan}"
 export B601_CAN_BITRATE="${B601_CAN_BITRATE:-1000000}"
 
 # ---- 主从臂标识 ----
-# 标定文件按 id 命名（…/calibration/<type>/<id>.json）。两台是不同实物臂，id 必须按机区分，
-# 否则两台会共用同一份零位 —— 各机在 devices/<host>.sh 里覆盖成 follower_kfzbox / follower_z790。
+# 标定文件按 id 命名（…/calibration/<type>/<id>.json）。两台机的 B601 从臂 / StarArm102 实测一致，
+# 共用一份默认标定（follower / leader）；某台臂换过电机或明显偏时，才在 devices/<host>.sh 里覆盖成
+# follower_<host> 单独校一份。
 # 注意：这里只给"兜底值"，真正的 ${B601_FOLLOWER_ID:- DEFAULT} 在 _env.sh 读完档案之后才定，
 # 否则本文件（先 source）会把档案里的值压掉。
 B601_FOLLOWER_ID_DEFAULT="follower"

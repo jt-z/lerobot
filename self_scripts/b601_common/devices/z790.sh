@@ -13,9 +13,11 @@ export B601_DATA_ROOT="${B601_DATA_ROOT:-$HOME/LX/pai0/b601_data}"
 # ---- 主臂 StarArm102：本机固定 ttyUSB0（无 rebot_leader 别名）----
 export B601_LEADER_PORT="${B601_LEADER_PORT:-/dev/ttyUSB0}"
 
-# ---- 臂标定 id：与 kfzbox 区分开（标定文件按 id 命名，两台必须各有一份零位）----
-export B601_FOLLOWER_ID="${B601_FOLLOWER_ID:-follower_z790}"
-export B601_LEADER_ID="${B601_LEADER_ID:-leader_z790}"
+# ---- 臂标定 id ----
+# 与 kfzbox 共用同一份默认标定（follower / leader）：两台 B601 从臂和 StarArm102 实测一致，
+# 不需要每台各校一次。若将来某台臂明显偏，再取消下面两行注释单独校一份。
+# export B601_FOLLOWER_ID="${B601_FOLLOWER_ID:-follower_z790}"
+# export B601_LEADER_ID="${B601_LEADER_ID:-leader_z790}"
 
 # ---- 相机角色（2026-11-02 实测三路 JYU2C；另有一台 2609007 可作备用/第四路）----
 export B601_CAM_ROLES="${B601_CAM_ROLES:-hand front top}"
