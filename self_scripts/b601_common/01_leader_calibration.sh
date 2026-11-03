@@ -22,7 +22,7 @@ _B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
 #   04_leader_port.py 对候选口真正 ping 主臂舵机（FashionStar id 0~6），有应答的才算主臂。
 LEADER_PORT="${LEADER_PORT:-}"
 LEADER_PORT_PROBE="$(dirname "$(readlink -f "$0")")/04_leader_port.py"
-LEADER_ID="leader"
+LEADER_ID="${B601_LEADER_ID:-leader}"
 
 echo "=========================================="
 echo "B601 主臂关节校准（rebot_102_leader）"

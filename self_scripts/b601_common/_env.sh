@@ -27,6 +27,16 @@ else
   echo "⚠️  没有设备档案 devices/$B601_DEVICE.sh，只用通用默认值（相机/数据根可能不对）" >&2
 fi
 
+# ---- 1.5) 档案没写的项，用 _defaults.sh 里的兜底值补上 ----
+# 必须放在读完档案之后：档案里写的是 B601_XXX，这里才决定"档案没写就取默认"。
+export B601_FOLLOWER_ID="${B601_FOLLOWER_ID:-${B601_FOLLOWER_ID_DEFAULT:-follower}}"
+export B601_LEADER_ID="${B601_LEADER_ID:-${B601_LEADER_ID_DEFAULT:-leader}}"
+export B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-${B601_JOINT_DIRECTIONS_DEFAULT}}"
+export B601_GRAVITY_COMPENSATION="${B601_GRAVITY_COMPENSATION:-${B601_GRAVITY_COMPENSATION_DEFAULT:-true}}"
+export B601_DISPLAY_DATA="${B601_DISPLAY_DATA:-${B601_DISPLAY_DATA_DEFAULT:-1}}"
+export B601_DISPLAY_MODE="${B601_DISPLAY_MODE:-${B601_DISPLAY_MODE_DEFAULT:-rerun}}"
+export B601_CAM_ROLES="${B601_CAM_ROLES:-${B601_CAM_ROLES_DEFAULT:-hand front top}}"
+
 # ---- 2) 主臂串口 ----
 if [ -z "${B601_LEADER_PORT:-}" ]; then
   for _cand in ${B601_LEADER_CANDIDATES:-$B601_LEADER_CANDIDATES_DEFAULT}; do

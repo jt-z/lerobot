@@ -88,19 +88,23 @@ echo "5) 相机"
 mapfile -t cams < <(ls /dev/v4l/by-id/*video-index0 2>/dev/null)
 if [ "${#cams[@]}" -eq 0 ]; then bad "没有相机 (/dev/v4l/by-id 为空)"
 else
-  echo "  发现 ${#cams[@]} 路:"; printf '    %s\n' "${cams[@]}"
-  [ "${#cams[@]}" -eq 3 ] && ok "3 路齐（核对 02_record.sh 里 CAMERAS 的序列号）" || warn "不是 3 路"
+  echo "  发现 ${#cams[@]} 路:"
+  printf '    %s\n' "${cams[@]}"
+  echo "  本机角色（B601_CAM_ROLES）：${B601_CAM_ROLES:-hand front top}"
+  _json="$(b601_cameras_json 2>/dev/null || true)"
+  _n=$(printf '%s' "$_json" | grep -c 'index_or_path' || true)
+  if [ "${_n:-0}" -ge 1 ]; then ok "按角色解析出 ${_n} 路（采集/遥操作会开这几路）"
+  else warn "一路角色都没解析出来（序列号没配或都不在线）"; fi
   echo "  判 hand/front/top：python $HERE/08_cam_probe.py"
 fi
 
 echo
 echo "6) 标定文件"
-for f in "$HOME/.cache/huggingface/lerobot/calibration/robots/seeed_b601_rs_follower/follower.json" \
-         "$HOME/.cache/huggingface/lerobot/calibration/teleoperators/rebot_102_leader/leader.json"; do
-  if [ -f "$f" ]; then ok "$(basename "$(dirname "$f")")/$(basename "$f")   $(date -r "$f" '+%F %H:%M')"
-  else bad "缺 $f"; fi
+for f in "$HOME/.cache/huggingface/lerobot/calibration/robots/seeed_b601_rs_follower/${B601_FOLLOWER_ID:-follower}.json" \
+         "$HOME/.cache/huggingface/lerobot/calibration/teleoperators/rebot_102_leader/${B601_LEADER_ID:-leader}.json"; do
+  [ -f "$f" ] && ok "$(basename "$(dirname "$f")")/$(basename "$f")   $(date -r "$f" '+%F %H:%M')" || bad "缺 $f"
 done
-_lf="$HOME/.cache/huggingface/lerobot/calibration/teleoperators/rebot_102_leader/leader.json"
+_lf="$HOME/.cache/huggingface/lerobot/calibration/teleoperators/rebot_102_leader/${B601_LEADER_ID:-leader}.json"
 if [ -f "$_lf" ] && [ -n "$(find "$_lf" -mtime +1 2>/dev/null)" ]; then
   warn "主臂 leader.json 超过 1 天没更新（$(date -r "$_lf" '+%F')）—— 若是新主臂没重校过，先跑 01_leader_calibration.sh"
 fi

@@ -19,9 +19,9 @@ set -o pipefail
 _B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
 [ -f "$_B601_ENV" ] && . "$_B601_ENV"
 
-ROBOT_PORT="can0"        # SocketCAN 接口（PCAN-USB）
-ROBOT_ADAPTER="socketcan"
-ROBOT_ID="follower"
+ROBOT_PORT="${B601_FOLLOWER_PORT:-can0}"        # SocketCAN 接口（PCAN-USB）
+ROBOT_ADAPTER="${B601_FOLLOWER_ADAPTER:-socketcan}"
+ROBOT_ID="${B601_FOLLOWER_ID:-follower}"        # 标定文件 …/seeed_b601_rs_follower/<id>.json
 
 echo "=========================================="
 echo "B601 从臂零位校准（seeed_b601_rs_follower）"
