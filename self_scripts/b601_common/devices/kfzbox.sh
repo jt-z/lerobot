@@ -21,10 +21,13 @@ export B601_LEADER_CANDIDATES="${B601_LEADER_CANDIDATES:-/dev/rebot_leader /dev/
 # export B601_FOLLOWER_ID="${B601_FOLLOWER_ID:-follower_kfzbox}"
 # export B601_LEADER_ID="${B601_LEADER_ID:-leader_kfzbox}"
 
-# ---- 相机（2026-11-02 实测：两路 JYU2C，镜头盖已摘，单开都 29.7fps）----
-#   画面判定：2609010 能看到整个工作台/工具 → top；2610057 贴近机械臂本体 → hand
-#   现场看一眼不对就改下面两行的序列号（只改本机档案，不动入口脚本）
-#   本机只有两路，front 视角不采（角色列表里没有 front）
-export B601_CAM_ROLES="${B601_CAM_ROLES:-hand top}"
-export B601_CAM_HAND="${B601_CAM_HAND:-2610057}"
-export B601_CAM_TOP="${B601_CAM_TOP:-2609010}"
+# ---- 相机（2026-11-03 三路 JYU2C，镜头盖已摘，单开都 29.7fps）----
+#   画面判定（2026-11-05 实测修正，此前 hand/top 接反）：2610057 能俯视整个工作台/工具 → top；
+#             2609010 贴近机械臂本体/夹爪 → hand；2608006 侧面第三视角 → front
+#   ⚠️ 三台 JYU2C 都是 USB2.0，每路固定预留 altsetting 11（约 24.5MB/s）。
+#      若两路挂在同一个 USB hub 上，第三路会报 "Not enough bandwidth for altsetting 11"。
+#      实测把 front 直接插到主机 USB 口（不经 hub）后，三路可同时 30fps 正常采集。
+export B601_CAM_ROLES="${B601_CAM_ROLES:-hand front top}"
+export B601_CAM_HAND="${B601_CAM_HAND:-2609010}"
+export B601_CAM_FRONT="${B601_CAM_FRONT:-2608006}"
+export B601_CAM_TOP="${B601_CAM_TOP:-2610057}"
