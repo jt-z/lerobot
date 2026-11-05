@@ -13,7 +13,7 @@
 #   如果录制过程中断，可以添加 --resume 参数继续录制。
 #
 # 按键结束每个 episode（lerobot-record 内置）：
-#   n/右方向键=结束本集 | r/左方向键=重录上一集 | q/Esc=停止整个录制
+#   n/右方向键=结束本集并保存 | r/左方向键=丢弃当前这一集（不保存）重录 | q/Esc=停止整个录制
 #
 # 安全须知：
 #   1. 采集前请确保主从臂已校准（self_scripts/b601_common/02_follower_calibration.sh / 01_leader_calibration.sh）
@@ -25,6 +25,9 @@
 #
 # 用法：bash self_scripts/b601_single/02_record.sh
 #   续录：bash self_scripts/b601_single/02_record.sh --resume <完整repo_id> [追加集数]
+#
+# CAN：采集前自动复位 can0（down→1Mbps→up）并清空残留帧，避免上次异常退出留下的
+#      垃圾帧把电机喂住、导致 connect() 报 "control ack timeout: comm_type=4"
 
 set -e
 set -o pipefail
@@ -32,6 +35,10 @@ set -o pipefail
 # 设备参数层 (2026-11-02)：按主机名自动选 b601_common/devices/<host>.sh（B601_DEVICE 可覆盖）
 _B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
 [ -f "$_B601_ENV" ] && . "$_B601_ENV"
+
+# 数据根目录：默认落在代码仓根目录（B601_REPO_ROOT 由 _env.sh 导出），
+# 每个 session 存到 $DATA_ROOT/b601_<时间戳>/
+DATA_ROOT="${B601_REPO_ROOT:-$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)}"
 
 # ==================== 环境检查 ====================
 if ! command -v lerobot-record >/dev/null 2>&1; then
@@ -62,7 +69,7 @@ if [ "$1" == "--resume" ]; then
     echo "❌ 错误：--resume 模式必须指定要续录的数据集完整 repo_id（带时间戳）"
     echo ""
     echo "   可用会话："
-    ls -d "${B601_DATA_ROOT:-$HOME/b601_data}"/b601_* 2>/dev/null | sed 's|.*/||' | sort
+    ls -d "$DATA_ROOT"/b601_* 2>/dev/null | sed 's|.*/||' | sort
     echo ""
     echo "   示例：bash self_scripts/b601_single/02_record.sh --resume b601_20260903_120000"
     exit 1
@@ -98,7 +105,11 @@ LEADER_PORT_PROBE="$(dirname "$(readlink -f "$0")")/../b601_common/04_leader_por
 
 # 从臂方向修正（必须保留，否则 shoulder_lift/gripper 被限位裁到 0 不动；
 # 与 03/04 脚本的 B601 左臂一致；某台臂装反就在该机 devices/<host>.sh 里覆盖）
-B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.0, wrist_flex: -1.0, wrist_yaw: -1.0, wrist_roll: -1.0, gripper: -1.0}}"
+# ⚠️ 不能写成 "${B601_JOINT_DIRECTIONS:-{...}}"：bash 在第一个 '}' 处就结束展开，
+#    变量已被 _env.sh 导出时，末尾那个 '}' 会作为普通字符拼上去，值变成 "...}}",
+#    draccus 按 YAML 解析直接报 "expected '<document start>', but found '}'"。
+#    所以默认值必须走间接变量（同 _env.sh / 01_teleop.sh 的写法）。
+B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-$B601_JOINT_DIRECTIONS_DEFAULT}"
 
 # ==================== 摄像头配置 ====================
 # 3 路相机（B601 从臂，无 left_/right_ 前缀）：
@@ -111,8 +122,7 @@ CAMERAS="$(b601_cameras_json)"
 
 # ==================== 数据集配置 ====================
 # 单 B601 数据根目录（新建），每个 session 存到 $DATA_ROOT/b601_<时间戳>/
-# kfzbox 本机适配：数据与代码仓分开，落在 ~/b601_data（可用 B601_DATA_ROOT 覆盖）
-DATA_ROOT="${B601_DATA_ROOT}"
+# 按要求改为代码仓根目录（$B601_REPO_ROOT），不再落在 ~/b601_data
 mkdir -p "$DATA_ROOT"
 
 if [ -n "$RESUME_REPO_ID" ]; then
@@ -126,10 +136,14 @@ PUSH_TO_HUB=false
 # 国内镜像源（配合上面开关；网络可用时生效）
 export HF_ENDPOINT=https://hf-mirror.com
 
-# ⚠️ 任务描述：改成你要采集的实际任务（须与后续训练一致）
-# 与已采集数据集 b601_20260910_164106 及其它单臂 B601 脚本保持一致，
-# 修改前请确认后续训练/续录都使用同一句描述。
-TASK_DESCRIPTION="Pick up the paper cup, place it on the silver tray of the coffee machine, pick up the cube, press the button with the cube (red light on), wait about 4 seconds, release the button (red light off), put the cube on the table first, then move the cup from the coffee machine to the table"
+# ⚠️ 任务描述：改成你要采集的实际任务。
+# 会原样写入 dataset metadata 并作为训练/推理 prompt，三处必须逐字一致。
+# 一律用英文：pi0/xvla 等使用的 PaliGemma/T5 tokenizer 以英文语料为主，
+# 中文会被切成大量字节 token，既超长又学不好语义。
+# 中文原意（仅供参考，勿写入数据集）：
+#   从取杯器中夹取杯子，放到出咖啡口下方的白色托盘上，再用夹爪尖端按下左侧第一个常亮按钮，
+#   确认按钮变为闪烁后，回到机械臂零位（初始位姿）
+TASK_DESCRIPTION="Take a cup from the dispenser, put it on the white tray under the coffee spout, press the first lit button on the left with the gripper tip, then return to the home pose when it blinks"
 NUM_EPISODES=120
 # --resume 模式下允许用第 3 个命令行参数覆盖本次追加的集数
 if [ -n "$NUM_EPISODES_OVERRIDE" ]; then
@@ -143,15 +157,38 @@ FPS=30
 
 # ==================== 采集前检查 ====================
 echo "1. 检查硬件..."
-# B601 CAN
-if ! ip link show $B601_FOLLOWER_PORT >/dev/null 2>&1; then
+# B601 CAN：启动前一律复位接口并清空残留帧（与 01_teleop.sh 保持一致）
+#   上次异常退出/急停断电时，PCAN 驱动队列和电机侧可能残留半截指令帧，
+#   电机被这些帧喂住后不再响应新的控制帧，表现为 connect() 时报
+#   "control ack timeout: comm_type=4"（disable_all/enable_all 超时）。
+#   这里 down→重设 bitrate→up 让控制器彻底复位，再把 socket 接收队列读空。
+can_drain() {
+  local port="$1"
+  command -v candump >/dev/null 2>&1 || return 0
+  timeout 0.3 candump "$port" >/dev/null 2>&1 || true
+}
+
+if ! ip link show "$B601_FOLLOWER_PORT" >/dev/null 2>&1; then
   echo "❌ $B601_FOLLOWER_PORT 不存在"; exit 1
 fi
-if ! ip link show $B601_FOLLOWER_PORT 2>/dev/null | grep -q "state UP"; then
-  echo "⚠️  配置 $B601_FOLLOWER_PORT（1Mbps 经典 CAN）..."
-  sudo ip link set $B601_FOLLOWER_PORT down 2>/dev/null || true
-  sudo ip link set $B601_FOLLOWER_PORT type can bitrate 1000000
-  sudo ip link set $B601_FOLLOWER_PORT up
+
+echo "♻️  复位 $B601_FOLLOWER_PORT（1Mbps）并清空残留 CAN 帧..."
+sudo ip link set "$B601_FOLLOWER_PORT" down 2>/dev/null || true
+sudo ip link set "$B601_FOLLOWER_PORT" type can bitrate 1000000 || {
+  echo "❌ 配置 $B601_FOLLOWER_PORT 失败（是否被其它进程占用？）"; exit 1
+}
+sudo ip link set "$B601_FOLLOWER_PORT" up
+sleep 0.5   # 给电机侧看门狗留时间丢掉上一条残留指令
+can_drain "$B601_FOLLOWER_PORT"
+
+# 启动前确认接口真的 UP，否则直接退出（别等到 lerobot 里才报 ack timeout）
+if ! ip link show "$B601_FOLLOWER_PORT" 2>/dev/null | grep -q "state UP"; then
+  echo "❌ $B601_FOLLOWER_PORT 未 UP —— 检查 PCAN-USB 是否插好、peak_usb 驱动是否加载"
+  ip -details link show "$B601_FOLLOWER_PORT" 2>/dev/null | sed -n '1,6p'
+  exit 1
+fi
+if ! ip -details link show "$B601_FOLLOWER_PORT" 2>/dev/null | grep -q "bitrate 1000000"; then
+  echo "⚠️  $B601_FOLLOWER_PORT 的 bitrate 不是 1000000，请确认总线速率"
 fi
 # 主臂串口（自动探测：优先 by-id 稳定路径，且必须真正 ping 到舵机才算数）
 if [ -z "$B601_LEADER_PORT" ]; then
@@ -176,7 +213,7 @@ if [ -z "$B601_LEADER_PORT" ] || [ ! -e "$B601_LEADER_PORT" ]; then
   exit 1
 fi
 [ -r "$B601_LEADER_PORT" ] || sudo chmod 666 "$B601_LEADER_PORT"
-echo "✅ 硬件就绪（主臂串口：$B601_LEADER_PORT）"
+echo "✅ 硬件就绪（从臂 $B601_FOLLOWER_PORT 已复位并清空残留帧；主臂串口：$B601_LEADER_PORT）"
 
 # 摄像头检查
 echo ""
@@ -243,7 +280,7 @@ echo "=========================================="
 echo ""
 echo -e "📝 按键控制（录制过程中随时可用，注意焦点保持在终端窗口）："
 echo -e "   n / 右方向键 = 当前 episode 演示完成，结束录制并保存"
-echo -e "   r / 左方向键 = 重录上一个 episode"
+echo -e "   r / 左方向键 = 丢弃当前这一集（不保存）并重录"
 echo -e "   q / Esc      = 停止整个录制"
 echo ""
 echo -e "   每个 episode 流程：开始录制 → 演示任务 → 按 n 结束并保存 →"
