@@ -9,6 +9,12 @@
   python self_scripts/b601_single/00_dual_cam.py --preview      # 实时预览（需带 GUI 的 OpenCV）
   python self_scripts/b601_single/00_dual_cam.py --hand 2609010 --top 2610057
   python self_scripts/b601_single/00_dual_cam.py --sequential   # 强制一路一路抓（总线带宽不够时用）
+  python self_scripts/b601_single/00_dual_cam.py --width 1280 --height 720 --preview   # 720p 预览
+  python self_scripts/b601_single/00_dual_cam.py --width 1920 --height 1080            # 1080p 抓帧
+
+默认就是 1280x720（MJPG 30fps）。注意 V4L2 不是任意分辨率都能出：申请不到时驱动会
+回落到最接近的合法模式，脚本会把"实际"分辨率打出来；如果实际值和你要的不一致，
+用 --list-modes 看这台相机到底支持哪些模式（相机不支持的分辨率强行设置是没用的）。
 
 同时打开失败时，脚本会自动退化成"顺序抓帧"：先抓 A 再抓 B，保证两路都验到，
 并把两帧拼成一张对比图，方便判断哪路是 hand、哪路是 top。
@@ -50,7 +56,9 @@ def open_cam(path, w, h, fps, fourcc):
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
     cap.set(cv2.CAP_PROP_FPS, fps)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    # 关键：BUFFERSIZE=1 会让每路帧率直接砍半（UVC 只有 1 个缓冲，读一帧丢一帧），
+    # 实测 720p 单路 15.2 fps vs 缓冲 4 的 29.7 fps。别为了"低延迟"设成 1。
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 4)
     return cap
 
 
@@ -63,6 +71,40 @@ def grab(cap, tries=15):
             frame = f
         time.sleep(0.03)
     return frame
+
+
+def list_modes(path: str) -> None:
+    """打印相机支持的分辨率/帧率（优先 v4l2-ctl，没有就用 OpenCV 探测常见档位）"""
+    print(f"\n--- {short(path)} 支持的格式 ---")
+    try:
+        out = subprocess.run(["v4l2-ctl", "--list-formats-ext", "-d", path],
+                             capture_output=True, text=True, timeout=10)
+        if out.returncode == 0 and out.stdout.strip():
+            print(out.stdout.strip())
+            return
+    except Exception:
+        pass
+
+    probes = [(3840, 2160), (2560, 1440), (1920, 1080), (1600, 1200), (1280, 960),
+              (1280, 720), (1024, 768), (800, 600), (640, 480), (352, 288)]
+    for w, h in probes:
+        cap = open_cam(path, w, h, 30, "MJPG")
+        if cap is None:
+            print("   ❌ 打不开，跳过")
+            return
+        f = grab(cap, tries=3)
+        aw, ah = (f.shape[1], f.shape[0]) if f is not None else (0, 0)
+        cap.release()
+        mark = "✅" if (aw, ah) == (w, h) else ("~" if f is not None else "❌")
+        print(f"   {mark} 申请 {w}x{h} -> 实际 {aw}x{ah}")
+    print("   （~ 表示相机不支持该分辨率，驱动回落到了最接近的模式）")
+
+
+def check_res(role: str, path: str, want: tuple[int, int], got: tuple[int, int]) -> None:
+    if want == got:
+        return
+    print(f"   ⚠️  {role} 申请 {want[0]}x{want[1]}，相机实际给的是 {got[0]}x{got[1]}"
+          f"（这台不支持该模式，看 --list-modes）")
 
 
 def usb_path(dev: str) -> str:
@@ -90,13 +132,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hand", default="", help="hand 相机序列号片段（留空=取第 1 路）")
     ap.add_argument("--top", default="", help="top 相机序列号片段（留空=取第 2 路）")
-    ap.add_argument("--width", type=int, default=640)
-    ap.add_argument("--height", type=int, default=480)
+    ap.add_argument("--width", type=int, default=1280)
+    ap.add_argument("--height", type=int, default=720)
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--fourcc", default="MJPG")
     ap.add_argument("--seconds", type=float, default=0.0, help="连续读多少秒（0=只抓一帧）")
     ap.add_argument("--preview", action="store_true", help="开窗口实时预览（q/ESC 退出）")
     ap.add_argument("--sequential", action="store_true", help="一路一路抓，不强求同时")
+    ap.add_argument("--list-modes", action="store_true", help="列出相机支持的分辨率/帧率后退出")
     ap.add_argument("--out", default=DEFAULT_OUT)
     a = ap.parse_args()
 
@@ -117,6 +160,12 @@ def main() -> int:
     if a.top and not top_path:
         print(f"❌ 找不到 top 序列号 {a.top}")
         return 1
+
+    if a.list_modes:
+        for _, path in [("hand", hand_path), ("top", top_path)]:
+            if path:
+                list_modes(path)
+        return 0
 
     targets = [("hand", hand_path), ("top", top_path)]
     targets = [(r, p) for r, p in targets if p]
@@ -142,6 +191,7 @@ def main() -> int:
             else:
                 h, w = f.shape[:2]
                 print(f"✅ {role:5s} 同时打开可用  {short(path)}  实际 {w}x{h}")
+                check_res(role, path, (a.width, a.height), (w, h))
                 frames[role] = (f, path)
 
         # 持续读帧：真实采集看的不是"能打开"，而是"同时开还能一直出帧"
@@ -184,8 +234,10 @@ def main() -> int:
                 print(f"   ⚠️ 中途读帧失败: {sorted(dead)}")
             low = [r for r in caps if n[r] / dt < a.fps * 0.8]
             if low:
-                print("   注：帧率不到目标是两类原因 —— ① 该相机本身到不了这个帧率（先单开一路测上限）；")
-                print("       ② 同一个 Python 进程里 cv2 同时开两路会互相砍半（实测 8.6/15.0 vs 拆进程 16.6/29.7）。")
+                print("   注：已经排除过的原因（本机实测 720p 两路同进程 30.5/29.7 fps）：")
+                print("       ① 不是 USB 带宽：两路 720p 同开、拆两个进程也都是 ~30 fps；")
+                print("       ② 不是同进程 cv2 互斥：真正的杀手是 CAP_PROP_BUFFERSIZE=1（丢一半帧）。")
+                print("       若仍不达标，先确认这行没被改回 1，再单开一路测该分辨率的上限。")
 
         for cap, _ in caps.values():
             cap.release()
@@ -208,6 +260,7 @@ def main() -> int:
                 continue
             h, w = f.shape[:2]
             print(f"✅ {role:5s} 顺序抓帧成功  {short(path)}  实际 {w}x{h}")
+            check_res(role, path, (a.width, a.height), (w, h))
             frames[role] = (f, path)
 
     if not frames:
@@ -217,8 +270,9 @@ def main() -> int:
     # ---------- 存帧 + 拼对比图 ----------
     for role, (f, path) in frames.items():
         vis = f.copy()
-        cv2.putText(vis, f"{role}  {short(path)}", (8, 26),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+        s = max(0.6, f.shape[1] / 1000)          # 高分辨率下图注按宽度放大
+        cv2.putText(vis, f"{role}  {short(path)}  {f.shape[1]}x{f.shape[0]}", (10, int(30 * s)),
+                    cv2.FONT_HERSHEY_SIMPLEX, s, (0, 255, 0), 2, cv2.LINE_AA)
         out = os.path.join(a.out, f"{role}_{short(path)}.jpg")
         cv2.imwrite(out, vis, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
         g = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)   # 用原始帧统计，别被我画上去的绿字污染
@@ -232,12 +286,13 @@ def main() -> int:
     if len(frames) == 2:
         import numpy as np
         order = [r for r in ("hand", "top") if r in frames]
+        s = max(0.6, a.width / 1000)
         imgs = []
         for r in order:
             f = frames[r][0]
             f = cv2.resize(f, (a.width, a.height))
-            cv2.putText(f, f"{r} {short(frames[r][1])}", (8, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(f, f"{r} {short(frames[r][1])}", (10, int(32 * s)),
+                        cv2.FONT_HERSHEY_SIMPLEX, s, (0, 255, 0), 2, cv2.LINE_AA)
             imgs.append(f)
         side = np.hstack(imgs)
         p = os.path.join(a.out, "compare_hand_top.jpg")
@@ -247,17 +302,21 @@ def main() -> int:
     # ---------- 可选：实时预览 ----------
     if a.preview:
         try:
-            caps = {}
+            caps, sizes = {}, {}
             for role, path in targets:
                 cap = open_cam(path, a.width, a.height, a.fps, a.fourcc)
-                if cap is not None and grab(cap) is not None:
+                if cap is None:
+                    continue
+                f = grab(cap)
+                if f is not None:
                     caps[role] = cap
+                    sizes[role] = f.shape[:2]
             if not caps:
                 print("⚠️  预览：没有可用相机")
             else:
-                for role in caps:
+                for role, (h, w) in sizes.items():
                     cv2.namedWindow(role, cv2.WINDOW_NORMAL)
-                    cv2.resizeWindow(role, a.width, a.height)
+                    cv2.resizeWindow(role, w, h)
                 t0 = time.perf_counter()
                 n = {r: 0 for r in caps}
                 while True:
@@ -265,8 +324,10 @@ def main() -> int:
                         ok, f = cap.read()
                         if ok and f is not None:
                             n[role] += 1
-                            cv2.putText(f, f"{role} #{n[role]}", (8, 26),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+                            scale = max(0.6, f.shape[1] / 1000)   # 720p 时字放大，别看不清
+                            cv2.putText(f, f"{role} #{n[role]}  {f.shape[1]}x{f.shape[0]}",
+                                        (10, int(30 * scale)), cv2.FONT_HERSHEY_SIMPLEX,
+                                        scale, (0, 255, 0), 2, cv2.LINE_AA)
                             cv2.imshow(role, f)
                     if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
                         break
@@ -291,6 +352,7 @@ def main() -> int:
         print("   若两路挂在同一条 USB2 集线器链上（1-10.x.x 这种），同时开就抢同一份等时带宽。")
         print("   解法：把其中一路换到机箱另一个 USB 口（别再共用同一个扩展坞/hub），")
         print("        然后重跑本脚本；仍不行就降分辨率/帧率（--width 352 --height 288 --fps 15）。")
+        print(f"   注意：分辨率越高越吃带宽，{a.width}x{a.height}@30 两路同开对 USB2 往往顶不住。")
     else:
         print("   同时开两路：正常，没有新增带宽报错（这台不用再动插口）")
 
