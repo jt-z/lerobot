@@ -160,16 +160,19 @@ fi
 [ -r "$B601_LEADER_PORT" ] || sudo chmod 666 "$B601_LEADER_PORT"
 echo "✅ 主臂串口已就绪：$B601_LEADER_PORT"
 
-# 4) 摄像头（3 路）
+# 4) 摄像头（角色 → 序列号来自设备档案 devices/<host>.sh，与推理栈共用一份）
 echo ""
-for cam in \
-  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0 \
-  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0 \
-  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0; do
-  if [ ! -e "$cam" ]; then
-    echo "❌ 警告：摄像头不存在 $cam"
+for role in ${B601_CAM_ROLES:-hand front top}; do
+  sn=$(b601_cam_serial "$role")
+  if [ -z "$sn" ]; then
+    echo "⚠️  $role: 设备档案里没配（本次不采这一路）"
+    continue
+  fi
+  cam=$(b601_cam_path "$sn") || cam=""
+  if [ -z "$cam" ] || [ ! -e "$cam" ]; then
+    echo "❌ 警告：$role 相机（$sn）不在机 —— 档案 $B601_DEVICE 里的序列号可能过期"
   else
-    echo "✅ $cam 已连接"
+    echo "✅ $role: $cam"
   fi
 done
 
