@@ -14,19 +14,47 @@ B601_FOLLOWER_PORT="${B601_FOLLOWER_PORT:-can0}"
 # 设备 ID = 校准文件名，须与采集时一致
 FOLLOWER_ID="${FOLLOWER_ID:-follower}"
 
-# 3 路相机：hand = JYU2C 2608076（腕部）、front = 2607031、top = 2607060（顶部）
-# 用 /dev/v4l/by-id 稳定路径（/dev/videoN 随插拔顺序变化，不可靠）
-B601_CAMERA_DEVS=(
-  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0
-  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0
-  /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0
-)
+# ---------------- 相机：序列号来自设备档案（与采集同一份，不再硬编码） ----------------
+# 采集脚本走 b601_common/_env.sh → devices/<host>.sh，相机序列号按机器写在档案里
+#   kfzbox: hand=2609010 front=2608006 top=2610057
+#   z790  : hand=2608076 front=2607031 top=2607060
+# 推理也 source 同一份档案 → 换相机/换机器只改档案一处，两个栈不会再对不上。
+# 档案缺失时才退回 2608076/2607031/2607060（2026-09 采集时那三台）。
+_B601_DEV_DIR="$_B601_INFER_DIR/../../../b601_common/devices"
+if [ -d "$_B601_DEV_DIR" ]; then
+  # shellcheck disable=SC1090
+  . "$_B601_DEV_DIR/_defaults.sh"
+  _b601_host="${B601_DEVICE:-$(hostname -s)}"
+  case "$_b601_host" in
+    kfzbox|mineru-box|mineru_box) _b601_host="kfzbox" ;;
+    kf-z790|z790|kf790)           _b601_host="z790"   ;;
+  esac
+  if [ -f "$_B601_DEV_DIR/$_b601_host.sh" ]; then
+    . "$_B601_DEV_DIR/$_b601_host.sh"
+  else
+    echo "⚠️  没有设备档案 devices/$_b601_host.sh，相机序列号用兜底值" >&2
+  fi
+  unset _b601_host
+else
+  echo "⚠️  找不到 $_B601_DEV_DIR，相机序列号用兜底值" >&2
+fi
+
+B601_CAM_HAND_SN="${B601_CAM_HAND:-2608076}"
+B601_CAM_FRONT_SN="${B601_CAM_FRONT:-2607031}"
+B601_CAM_TOP_SN="${B601_CAM_TOP:-2607060}"
+b601_cam_dev() {
+  printf '/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-%s-video-index0' "$1"
+}
+B601_CAM_HAND_DEV="$(b601_cam_dev "$B601_CAM_HAND_SN")"
+B601_CAM_FRONT_DEV="$(b601_cam_dev "$B601_CAM_FRONT_SN")"
+B601_CAM_TOP_DEV="$(b601_cam_dev "$B601_CAM_TOP_SN")"
+B601_CAMERA_DEVS=( "$B601_CAM_HAND_DEV" "$B601_CAM_FRONT_DEV" "$B601_CAM_TOP_DEV" )
 # 相机名 → 设备路径（--robot.cameras 的取值，dracus 解析）
-CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2608076-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  front: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607031-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG},
-  top: {type: opencv, index_or_path: /dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-2607060-video-index0, width: 640, height: 480, fps: 30, fourcc: MJPG}
-}'
+CAMERAS="{
+  hand: {type: opencv, index_or_path: $B601_CAM_HAND_DEV, width: 640, height: 480, fps: 30, fourcc: MJPG},
+  front: {type: opencv, index_or_path: $B601_CAM_FRONT_DEV, width: 640, height: 480, fps: 30, fourcc: MJPG},
+  top: {type: opencv, index_or_path: $B601_CAM_TOP_DEV, width: 640, height: 480, fps: 30, fourcc: MJPG}
+}"
 
 # B601 方向修正：必须与采集（02_record.sh 的 B601_JOINT_DIRECTIONS）一致，全 -1.0。
 # 原因：seeed_b601_rs_follower.send_action 对每个关节先乘 joint_directions
@@ -42,7 +70,7 @@ B601_JOINT_DIRECTIONS='{shoulder_pan: -1.0, shoulder_lift: -1.0, elbow_flex: -1.
 TASK_DESCRIPTION="Pick up the paper cup, place it on the silver tray of the coffee machine, pick up the cube, press the button with the cube (red light on), wait about 4 seconds, release the button (red light off), put the cube on the table first, then move the cup from the coffee machine to the table"
 
 FPS=30          # 必须与训练数据集 fps（30Hz）一致，否则时序错位
-DURATION=0      # 总运行时长上限（秒）：0 = 不限，跑到 Ctrl+C；>0 则到点自动退出
+DURATION="${DURATION:-0}"      # 总运行时长上限（秒）：0 = 不限，跑到 Ctrl+C；>0 则到点自动退出
 INFERENCE_TYPE="sync"   # sync = 换 chunk 时阻塞前向（可记录 model 列）；rtc = 后台线程异步（不阻塞）
 
 # 动作追踪（1 = 用 action_trace.py 包装 lerobot-rollout，运行时打补丁，不改 lerobot 源码）：
