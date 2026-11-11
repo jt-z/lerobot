@@ -60,6 +60,8 @@ lib64/
 *.manifest
 *.spec
 
+lx
+
 ### Compiled & Cached Files ###
 __pycache__/
 *.py[cod]
