@@ -722,10 +722,21 @@ class SeeedB601FollowerBase(Robot):
                 if motor_name == FOLLOWER_GRIPPER_MOTOR:
                     # Single-turn absolute encoder readings can wrap by a full turn
                     # after a power cycle (269 deg -> -91 deg). Normalize into
-                    # [0, 360) so observations/model coordinates stay consistent.
+                    # [0, 360) first.
                     pos_deg = self._normalize_deg(pos_deg)
-                obs_dict[f"{motor_name}.pos"] = pos_deg
-                obs_dict[f"{motor_name}.vel"] = math.degrees(state.vel)
+                    # The gripper's physical travel is only 0~270 deg, so readings
+                    # above that limit are really just past the 360 deg boundary
+                    # (the closed position dithers around 0/360). Fold them back to
+                    # negative values so observations don't jump between 0 and 360.
+                    gripper_max = self.config.joint_limits.get(FOLLOWER_GRIPPER_MOTOR, (0.0, 270.0))[1]
+                    if pos_deg > gripper_max:
+                        pos_deg -= 360.0
+                # Use the same coordinate frame as send_action: observations must be
+                # multiplied by joint_directions too, otherwise observation.state lives
+                # in the motor frame while action lives in the policy frame (opposite signs).
+                direction = self.config.joint_directions.get(motor_name, 1.0) or 1.0
+                obs_dict[f"{motor_name}.pos"] = pos_deg * direction
+                obs_dict[f"{motor_name}.vel"] = math.degrees(state.vel) * direction
                 obs_dict[f"{motor_name}.torque"] = state.torq
             else:
                 obs_dict[f"{motor_name}.pos"] = 0.0

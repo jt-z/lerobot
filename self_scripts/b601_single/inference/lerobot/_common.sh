@@ -245,6 +245,8 @@ b601_export_offline_hf() {
 # 组装并执行 lerobot-rollout：$@ = 策略专属参数（--strategy.type / --inference.type /
 # --policy.path / 去噪步数 等），机器人侧公共参数由本函数补齐。
 # 可选变量：CAMERA_RENAME_MAP（非空则追加 --rename_map）、ACT_VIZ（1 = 用 ACT 可视化包装器）
+#   B601_ROLLOUT_BACKGROUND=1：后台运行（便于运行中按键打断）；PID 写入 B601_ROLLOUT_PID_FILE，
+#   调用方用 kill -INT <pid> 停止（rollout 会走正常退出/断开流程）
 b601_run_rollout() {
   local -a cmd=()
   local -a rename_arg=()
@@ -264,19 +266,34 @@ b601_run_rollout() {
     rename_arg=(--rename_map="$CAMERA_RENAME_MAP")
   fi
 
-  "${cmd[@]}" "$@" \
-    --robot.type=seeed_b601_rs_follower \
-    --robot.id="$FOLLOWER_ID" \
-    --robot.port="$B601_FOLLOWER_PORT" \
-    --robot.can_adapter=socketcan \
-    --robot.gravity_compensation=true \
-    --robot.joint_directions="$B601_JOINT_DIRECTIONS" \
-    --robot.cameras="$CAMERAS" \
-    "${rename_arg[@]}" \
-    --task="$TASK_DESCRIPTION" \
-    --fps="$FPS" \
-    --duration="$DURATION" \
-    --display_data=true \
-    --display_compressed_images=false \
-    --play_sounds=false 2>&1 | tee "$LOG_FILE"
+  local -a args=(
+    "$@"
+    --robot.type=seeed_b601_rs_follower
+    --robot.id="$FOLLOWER_ID"
+    --robot.port="$B601_FOLLOWER_PORT"
+    --robot.can_adapter=socketcan
+    --robot.gravity_compensation=true
+    --robot.joint_directions="$B601_JOINT_DIRECTIONS"
+    --robot.cameras="$CAMERAS"
+    "${rename_arg[@]}"
+    --task="$TASK_DESCRIPTION"
+    --fps="$FPS"
+    --duration="$DURATION"
+    --display_data=true
+    --display_compressed_images=false
+    --play_sounds=false
+  )
+
+  if [ "${B601_ROLLOUT_BACKGROUND:-0}" = "1" ]; then
+    # 后台跑 python（tee 走进程替换保留控制台输出），$! 就是 rollout 本体 PID
+    "${cmd[@]}" "${args[@]}" > >(tee "$LOG_FILE") 2>&1 &
+    B601_ROLLOUT_PID=$!
+    if [ -n "${B601_ROLLOUT_PID_FILE:-}" ]; then
+      printf '%s\n' "$B601_ROLLOUT_PID" > "$B601_ROLLOUT_PID_FILE"
+    fi
+    wait "$B601_ROLLOUT_PID"
+    return $?
+  fi
+
+  "${cmd[@]}" "${args[@]}" 2>&1 | tee "$LOG_FILE"
 }

@@ -47,10 +47,10 @@ echo "=========================================="
 echo ""
 
 # ==================== 数据集配置 ====================
-DATASET_ROOT="/home/kf/LX/pai0/b601_data/b601_20260915_141534"
+DATASET_ROOT="${DATASET_ROOT:-/home/kf/LX/pai0/b601_data/b601_20260915_141534}"
 # 本地数据集的 repo_id 只是个标签（已有 root，不会去 Hub 下载）
 REPO_ID="local/$(basename "$DATASET_ROOT")"
-EPISODE=0   # 要kfinfer的 episode 序号
+EPISODE="${EPISODE:-0}"   # 要kfinfer的 episode 序号
 FPS=30      # 与采集一致（实际以数据集 meta 里的 fps 为准）
 
 # ==================== 硬件配置 ====================
