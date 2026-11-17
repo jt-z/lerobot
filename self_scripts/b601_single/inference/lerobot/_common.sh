@@ -250,7 +250,10 @@ b601_export_offline_hf() {
 b601_run_rollout() {
   local -a cmd=()
   local -a rename_arg=()
-  if [ "${ACT_VIZ:-0}" = "1" ]; then
+  if [ -n "${ENTRY_WRAPPER:-}" ]; then
+    # 自定义入口（如 pi05 的显存/计时包装器），参数与 lerobot-rollout 完全一致
+    cmd=(python "$ENTRY_WRAPPER")
+  elif [ "${ACT_VIZ:-0}" = "1" ]; then
     cmd=(python "$ACT_VIZ_WRAPPER")
     export ACT_VIZ_EVERY_N ACT_VIZ_ANALYSIS ACT_VIZ_HEADS_EVERY ACT_VIZ_HEADS ACT_VIZ_ALPHA ACT_VIZ_BLUEPRINT
     export ACT_VIZ_MP4 ACT_VIZ_MP4_DIR ACT_VIZ_MP4_MODE ACT_VIZ_MP4_CRF

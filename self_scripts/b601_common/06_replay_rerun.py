@@ -26,6 +26,12 @@
 
   # 关掉显示则等价于 lerobot-replay（此时也不需要相机）:
     --display_data=false
+
+键盘控制（保持终端焦点）:
+    p        暂停 / 保持当前帧姿态
+    r        继续播放
+    ← / →    暂停并按回放速度慢速倒退 / 前进 2 秒，到位后保持暂停
+    v        开 / 关 rerun 画面刷新（不打断回放）
 """
 
 # 注意：这里**不能**加 `from __future__ import annotations` ——
@@ -33,6 +39,8 @@
 # typing.get_type_hints），加了之后注解变成字符串，--help / 参数解析会直接报 TypeError。
 
 import logging
+import sys
+import threading
 from dataclasses import asdict, dataclass
 from pprint import pformat
 
@@ -44,6 +52,7 @@ from lerobot.scripts.lerobot_replay import DatasetReplayConfig
 from lerobot.utils.constants import ACTION
 from lerobot.utils.cycle_timer import CycleTimer
 from lerobot.utils.import_utils import register_third_party_plugins
+from lerobot.utils.keyboard_input import TerminalKeyListener
 from lerobot.utils.utils import init_logging, log_say
 from lerobot.utils.visualization_utils import (
     init_visualization,
@@ -66,6 +75,77 @@ class ReplayDisplayConfig:
     display_compressed_images: bool = False
 
 
+class ReplayKeyboardController:
+    """重放期间的键盘状态机。
+
+    p    暂停（每个 tick 继续下发当前帧目标角，机械臂保持姿态）
+    r    继续播放
+    ←/→  暂停并按回放速度逐帧倒退/前进 2s，到位后保持暂停
+    v    开/关 rerun 画面（只停/恢复刷新，不打断回放）
+    """
+
+    def __init__(self, num_frames: int, fps: int):
+        self.num_frames = num_frames
+        self.step_frames = max(1, round(2 * fps))  # 左右键一次 2 秒
+        self._lock = threading.Lock()
+        self.idx = 0
+        self.paused = False
+        self.target: int | None = None
+        self.display_enabled = True
+
+    def set_display_enabled(self, enabled: bool) -> None:
+        with self._lock:
+            self.display_enabled = enabled
+
+    def display_is_enabled(self) -> bool:
+        with self._lock:
+            return self.display_enabled
+
+    def on_key(self, name: str) -> None:
+        key = name.lower()
+        with self._lock:
+            if key == "p":
+                if not self.paused:
+                    self.paused = True
+                    self.target = None
+                    print(f"\n[replay] 暂停 @ frame {self.idx}（r 继续，←/→ 调整）", flush=True)
+            elif key == "r":
+                self.paused = False
+                self.target = None
+                print(f"\n[replay] 继续播放 @ frame {self.idx}", flush=True)
+            elif key in ("left", "right"):
+                base = self.target if self.target is not None else self.idx
+                delta = -self.step_frames if key == "left" else self.step_frames
+                self.target = max(0, min(self.num_frames - 1, base + delta))
+                self.paused = True
+                direction = "倒退" if delta < 0 else "前进"
+                print(f"\n[replay] 暂停，按回放速度{direction} 2s → frame {self.target}", flush=True)
+            elif key == "v":
+                self.display_enabled = not self.display_enabled
+                state = "开" if self.display_enabled else "关"
+                print(f"\n[replay] 可视画面：{state}", flush=True)
+
+    def next_action_index(self) -> int | None:
+        """返回本 tick 要下发的帧号；None 表示整段播放结束。"""
+        with self._lock:
+            if self.target is not None:
+                # 慢速拖动：每 tick 只走一帧，走完 2s 的量后停在目标帧。
+                if self.idx < self.target:
+                    self.idx += 1
+                elif self.idx > self.target:
+                    self.idx -= 1
+                if self.idx == self.target:
+                    self.target = None
+                return self.idx
+            if self.paused:
+                return self.idx
+            if self.idx >= self.num_frames:
+                return None
+            idx = self.idx
+            self.idx += 1
+            return idx
+
+
 @parser.wrap()
 def replay(cfg: ReplayDisplayConfig) -> None:
     init_logging()
@@ -76,6 +156,17 @@ def replay(cfg: ReplayDisplayConfig) -> None:
     actions = dataset.select_columns(ACTION)
     robot_action_processor = make_default_robot_action_processor()
 
+    controller = ReplayKeyboardController(dataset.num_frames, dataset.fps)
+    controller.set_display_enabled(cfg.display_data)
+    # 只读当前终端：避免 X11 全局钩子把其它窗口里的方向键也当成回放控制。
+    keyboard = TerminalKeyListener(controller.on_key)
+    keyboard.start()
+    if sys.stdin.isatty():
+        print("回放控制：p 暂停 | r 继续 | ←/→ 慢速倒退/前进 2s | v 开/关可视画面", flush=True)
+    else:
+        logging.warning("stdin 不是终端，键盘控制不可用（p/r/←/→/v）")
+
+    display_initialized = False
     if cfg.display_data:
         logging.info(
             f"Initializing {cfg.display_mode} visualization (ip={cfg.display_ip}, port={cfg.display_port})"
@@ -83,16 +174,20 @@ def replay(cfg: ReplayDisplayConfig) -> None:
         init_visualization(
             cfg.display_mode, session_name="replay", ip=cfg.display_ip, port=cfg.display_port
         )
+        display_initialized = True
 
     robot.connect()
     # 必须按数据集自身 fps 重放，否则轨迹速度不对；只下发、不写数据。
     timer = CycleTimer(dataset.fps, records_data=False)
     try:
         log_say("Replaying episode", cfg.play_sounds, blocking=True)
-        for idx in range(dataset.num_frames):
+        while True:
             timer.tick()
 
             with timer.section("read_frame"):
+                idx = controller.next_action_index()
+                if idx is None:
+                    break
                 action_array = actions[idx][ACTION]
                 action = {
                     name: action_array[i] for i, name in enumerate(dataset.features[ACTION]["names"])
@@ -105,7 +200,16 @@ def replay(cfg: ReplayDisplayConfig) -> None:
                 processed_action = robot_action_processor((action, robot_obs))
                 robot.send_action(processed_action)
 
-            if cfg.display_data:
+            if controller.display_is_enabled():
+                if not display_initialized:
+                    # 启动时 --display_data=false，用户按 v 后再开。
+                    init_visualization(
+                        cfg.display_mode,
+                        session_name="replay",
+                        ip=cfg.display_ip,
+                        port=cfg.display_port,
+                    )
+                    display_initialized = True
                 # 与 lerobot-rollout 的 telemetry 一样：observation（含三路相机图）+ action 一起送 rerun
                 with timer.section("display"):
                     log_visualization_data(
@@ -117,9 +221,10 @@ def replay(cfg: ReplayDisplayConfig) -> None:
 
             timer.wait()
     finally:
+        keyboard.stop()
         timer.log_run_summary()
         robot.disconnect()
-        if cfg.display_data:
+        if display_initialized:
             shutdown_visualization(cfg.display_mode)
 
 

@@ -36,9 +36,9 @@ set -o pipefail
 _B601_ENV="$(dirname "$(readlink -f "$0")")/../b601_common/_env.sh"
 [ -f "$_B601_ENV" ] && . "$_B601_ENV"
 
-# 数据根目录：默认落在代码仓根目录（B601_REPO_ROOT 由 _env.sh 导出），
+# 数据根目录：与代码仓分开，落在设备档案的 B601_DATA_ROOT（kfzbox=~/b601_data，z790=~/LX/pai0/b601_data），
 # 每个 session 存到 $DATA_ROOT/b601_<时间戳>/
-DATA_ROOT="${B601_REPO_ROOT:-$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)}"
+DATA_ROOT="${B601_DATA_ROOT:-$HOME/b601_data}"
 
 # ==================== 环境检查 ====================
 if ! command -v lerobot-record >/dev/null 2>&1; then
@@ -121,8 +121,7 @@ B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-$B601_JOINT_DIRECTIONS_DEFAULT}"
 CAMERAS="$(b601_cameras_json)"
 
 # ==================== 数据集配置 ====================
-# 单 B601 数据根目录（新建），每个 session 存到 $DATA_ROOT/b601_<时间戳>/
-# 按要求改为代码仓根目录（$B601_REPO_ROOT），不再落在 ~/b601_data
+# 单 B601 数据根目录：每个 session 存到 $DATA_ROOT/b601_<时间戳>/（$B601_DATA_ROOT，kfzbox=~/b601_data）
 mkdir -p "$DATA_ROOT"
 
 if [ -n "$RESUME_REPO_ID" ]; then
