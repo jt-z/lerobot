@@ -8,11 +8,13 @@
 
 对话里说的 “task1” 对应仓库根目录的 `b601_1`，episode 44 属于它的唯一任务（按钮任务）：
 
-| 数据集 | episode 44 的 task_index | 任务文本 | 长度 |
+| 数据集 | episode 44 的 task_index | 任务 | 长度 |
 |---|---|---|---|
-| `b601_1` | 0 | Take a cup from the dispenser, put it on the white tray under the coffee spout, press the first lit button on the left with the gripper tip, then return to the home pose when it blinks | 1434 帧 / 47.8s |
-| `b601_2` | 1 | Pick up the coffee cup ... place it in cup placement area 2 | 660 帧 / 22.0s |
+| `b601_1` | 0 | 取杯 → 接咖啡 → 按按钮 → 回零位（唯一任务） | 1434 帧 / 47.8s |
+| `b601_2` | 1 | 放 2 号取杯区 | 660 帧 / 22.0s |
 | `b601_mixed` | 0 | 同 `b601_1`（混合集里的任务 0） | 1434 帧 / 47.8s |
+
+任务文本原文见 [本地数据集清单 §二](../01_数据集资产/数据集_清单_本地资产.md)，此处不重复。
 
 容易踩的坑：同一个 `44` 在不同数据集里不是同一个任务。
 
