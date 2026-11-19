@@ -66,6 +66,8 @@ class SyncInferenceEngine(InferenceEngine):
         task: str,
         device: str | None,
         robot_type: str,
+        seam_max_step_deg: float = 3.0,
+        seam_jump_threshold_deg: float = 12.0,
     ) -> None:
         super().__init__(task=task)
         self._policy = policy
@@ -75,6 +77,29 @@ class SyncInferenceEngine(InferenceEngine):
         self._ordered_action_keys = ordered_action_keys
         self._device = torch.device(device or "cpu")
         self._robot_type = robot_type
+        # Seam smoothing: chunking policies execute their chunk open-loop, so the
+        # action re-planned after a chunk is used up can differ from the previous
+        # command by tens of degrees (tracking error accumulated over the chunk).
+        # A step larger than ``seam_jump_threshold_deg`` is spread over as many
+        # ticks as needed to keep every joint at or below ``seam_max_step_deg``
+        # per tick — the tick count is derived from the jump, not configured.
+        self._seam_max_step = float(seam_max_step_deg)
+        self._seam_threshold = float(seam_jump_threshold_deg)
+        self._seam_active = False
+        self._last_dispatched: torch.Tensor | None = None
+        # The gripper is a near-binary actuator and closes/opens at full speed; rate
+        # limiting it would only delay grasps by seconds.  Smooth arm joints only.
+        self._seam_mask = torch.tensor(
+            ["gripper" not in k.lower() for k in ordered_action_keys], dtype=torch.bool
+        )
+        if self._seam_max_step <= 0:
+            logger.info("Seam smoothing disabled (seam_max_step_deg <= 0)")
+        else:
+            logger.info(
+                "Seam smoothing enabled: arm steps > %.1f deg spread at <= %.2f deg per tick (gripper unaffected)",
+                self._seam_threshold,
+                self._seam_max_step,
+            )
         logger.info(
             "SyncInferenceEngine initialized (device=%s, action_keys=%d)",
             self._device,
@@ -95,6 +120,9 @@ class SyncInferenceEngine(InferenceEngine):
         self._policy.reset()
         self._preprocessor.reset()
         self._postprocessor.reset()
+        # A reset starts a new command stream: the first action is not a seam.
+        self._seam_active = False
+        self._last_dispatched = None
         # The policy was just reset, so a pending task change has nothing stale to flush.
         self._discard_task_change()
 
@@ -131,7 +159,48 @@ class SyncInferenceEngine(InferenceEngine):
         # ``task`` is the pre-inference snapshot: a /subtask landing mid-inference must
         # not relabel this action.
         self._set_dispatched_task(task)
-        return torch.tensor([action_dict[k] for k in self._ordered_action_keys])
+        return self._apply_seam_blend(torch.tensor([action_dict[k] for k in self._ordered_action_keys]))
+
+    def _apply_seam_blend(self, action: torch.Tensor) -> torch.Tensor:
+        """Rate-limit a chunk-seam step so no joint moves faster than the cap.
+
+        A chunking policy re-plans only when its queue runs dry, and the new plan is
+        anchored to the measured state while the previous command came from a
+        prediction made a whole chunk ago.  The difference is a step at the seam.
+        Once a step above ``seam_jump_threshold_deg`` is seen, the command follows
+        the new chunk at no more than ``seam_max_step_deg`` per tick until it has
+        caught up, so how many ticks the transition takes follows the jump size
+        (44° at 3°/tick → 15 ticks) instead of being a fixed number.  Motion below
+        the threshold is passed through untouched, and the gripper is never limited.
+        Disabled when ``seam_max_step_deg <= 0``.
+        """
+        if self._seam_max_step <= 0:
+            self._last_dispatched = action
+            return action
+
+        last = self._last_dispatched
+        if last is None:
+            self._last_dispatched = action
+            return action
+
+        delta = action - last
+        if not self._seam_active:
+            jump = float(delta[self._seam_mask].abs().max()) if self._seam_mask.any() else 0.0
+            if jump <= self._seam_threshold:
+                self._last_dispatched = action
+                return action
+            self._seam_active = True
+            logger.debug(
+                "Chunk seam (%.1f deg) — rate-limited to %.2f deg/tick", jump, self._seam_max_step
+            )
+
+        limited = delta.clamp(-self._seam_max_step, self._seam_max_step)
+        out = last + torch.where(self._seam_mask, limited, delta)
+        remaining = float((action - out)[self._seam_mask].abs().max()) if self._seam_mask.any() else 0.0
+        if remaining <= 1e-4:
+            self._seam_active = False
+        self._last_dispatched = out
+        return out
 
     # ------------------------------------------------------------------
     # Text queries

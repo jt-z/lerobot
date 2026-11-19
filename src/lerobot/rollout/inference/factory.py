@@ -62,6 +62,16 @@ class InferenceEngineConfig(draccus.ChoiceRegistry, abc.ABC):
 class SyncInferenceConfig(InferenceEngineConfig):
     """Inline synchronous inference (one policy call per control tick)."""
 
+    # Chunk-seam smoothing.  A chunking policy (e.g. ACT) re-plans only after its
+    # queue is exhausted, so the new chunk's first action can differ from the last
+    # command by tens of degrees.  Any arm-order step larger than
+    # ``seam_jump_threshold_deg`` is spread over as many ticks as needed to keep it
+    # at or below ``seam_max_step_deg`` per tick (the tick count follows the jump
+    # size); the gripper is passed through unthrottled.  Set ``seam_max_step_deg``
+    # to 0 to disable.
+    seam_max_step_deg: float = 3.0
+    seam_jump_threshold_deg: float = 12.0
+
 
 @InferenceEngineConfig.register_subclass("rtc")
 @dataclass
@@ -108,6 +118,8 @@ def create_inference_engine(
             task=task,
             device=device,
             robot_type=robot_wrapper.robot_type,
+            seam_max_step_deg=config.seam_max_step_deg,
+            seam_jump_threshold_deg=config.seam_jump_threshold_deg,
         )
     if isinstance(config, RTCInferenceConfig):
         return RTCInferenceEngine(
