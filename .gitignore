@@ -14,7 +14,7 @@
 # 采集数据默认落在仓库根目录（02_record.sh: $B601_REPO_ROOT/b601_<时间戳>/），整目录忽略
 /b601_*/
 model_weights
-
+*.bak-*
 self_scripts/output_lerobot_train/pi05_b601_20260910_164106_20260930
 
 self_scripts/output_lerobot_train
