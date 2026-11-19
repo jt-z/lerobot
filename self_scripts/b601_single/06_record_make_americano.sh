@@ -31,6 +31,17 @@
 #
 # CAN：采集前自动复位 can0（down→1Mbps→up）并清空残留帧，避免上次异常退出留下的
 #      垃圾帧把电机喂住、导致 connect() 报 "control ack timeout: comm_type=4"
+#
+# 启动零位自检（b601_common/10_start_pose_check.py）：
+#   主臂 StarArm102 只读、软件无法驱动它回零，只能读角度检测 + 提示人工摆正；
+#   从臂 B601-RS 会 safe_zero() 慢速归零，夹爪再慢速合到 0°。两侧都进容差才开录，
+#   保证每集起始姿态一致。注意：能自动矫正的只有从臂，主臂必须人手摆回零位。
+#
+# 全程限速 --robot.max_relative_target（默认 10°/帧 @30fps ≈ 300°/s）：
+#   录制中若主臂被碰歪，从臂只会限速跟随，不会一瞬间甩过去；需要更松/更紧时用
+#   B601_MAX_RELATIVE_TARGET=... 覆盖。
+#   触发限幅时由包装器 b601_common/11_voice_rate_guard.py 播报一次 "too fast"
+#   （一段连续超速只响一次），同时丢掉重复的 clamp WARNING，避免日志刷屏。
 
 set -e
 set -o pipefail
@@ -130,6 +141,13 @@ LEADER_PORT_PROBE="$(dirname "$(readlink -f "$0")")/../b601_common/04_leader_por
 # 从臂方向修正（必须保留，否则 shoulder_lift/gripper 被限位裁到 0 不动）
 # ⚠️ 不能用 "${VAR:-{...}}"：bash 在第一个 '}' 处结束展开，默认值必须走间接变量。
 B601_JOINT_DIRECTIONS="${B601_JOINT_DIRECTIONS:-$B601_JOINT_DIRECTIONS_DEFAULT}"
+
+# 启动零位自检脚本；MAX_RELATIVE_TARGET 是从臂单步最大位移（度/帧），
+# 30fps 下 10°/帧 ≈ 300°/s，只兜住"碰歪猛甩"，不干扰正常遥操作。
+START_POSE_CHECK="$(dirname "$(readlink -f "$0")")/../b601_common/10_start_pose_check.py"
+MAX_RELATIVE_TARGET="${B601_MAX_RELATIVE_TARGET:-10.0}"
+# lerobot-record 包装器：超速时语音提示 "too fast"（每段只响一次）
+VOICE_GUARD="$(dirname "$(readlink -f "$0")")/../b601_common/11_voice_rate_guard.py"
 
 # ==================== 摄像头配置 ====================
 # 与 02_record.sh 一致：角色→序列号来自设备档案；缺失时由 b601_cameras_json 兜底并提示
@@ -283,7 +301,35 @@ echo ""
 echo -e "   每个 episode 流程：开始录制 → 按中杯水量、中等浓度、启动萃取 → 按 n 结束并保存 →"
 echo -e "   重置环境（把咖啡机设置复位、机械臂回起点）→ 自动进入下一个 episode。"
 echo ""
-read -p "把咖啡机恢复到待机状态、机械臂回到起点、主从臂在零位，按 ENTER 开始（Ctrl+C 取消）..." dummy
+read -p "把咖啡机恢复到待机状态、机械臂回到起点，按 ENTER 开始自检（Ctrl+C 取消）..." dummy
+
+# ==================== 启动零位自检 ====================
+# 主臂只读，只做检测；从臂会自动慢速归零、夹爪慢速合到 0°。
+# 自检通过后从臂停在零位，紧接着启动 lerobot-record，首帧不会跳变。
+if [ ! -f "$START_POSE_CHECK" ]; then
+  echo "❌ 缺少零位自检脚本：$START_POSE_CHECK"
+  exit 1
+fi
+if [ ! -f "$VOICE_GUARD" ]; then
+  echo "❌ 缺少超速语音包装器：$VOICE_GUARD"
+  exit 1
+fi
+echo ""
+echo "5. 主从臂零位自检（从臂会自动慢速归零，请确认夹爪内没有物体、周围无障碍）..."
+set +e
+python "$START_POSE_CHECK" \
+  --leader-port "$B601_LEADER_PORT" \
+  --leader-id "$LEADER_ID" \
+  --follower-port "$B601_FOLLOWER_PORT" \
+  --follower-id "$FOLLOWER_ID" \
+  --joint-directions "$B601_JOINT_DIRECTIONS"
+CHECK_RC=$?
+set -e
+if [ "$CHECK_RC" -ne 0 ]; then
+  echo ""
+  echo "❌ 零位自检未通过（exit=$CHECK_RC），已中止采集。"
+  exit "$CHECK_RC"
+fi
 
 # ==================== 开始采集 ====================
 # Rerun 缓冲/内存（解决 gRPC transport error 与 1000 帧限制）
@@ -306,12 +352,13 @@ if [ -f "$DATA_DIR/meta/info.json" ]; then
   BEFORE_EPISODES=$(python3 -c "import json; print(json.load(open('$DATA_DIR/meta/info.json'))['total_episodes'])" 2>/dev/null || echo 0)
 fi
 
-RECORD_CMD="lerobot-record \
+RECORD_CMD="python \"$VOICE_GUARD\" -- \
   --robot.type=seeed_b601_rs_follower \
   --robot.id=$FOLLOWER_ID \
   --robot.port=$B601_FOLLOWER_PORT \
   --robot.can_adapter=socketcan \
   --robot.gravity_compensation=true \
+  --robot.max_relative_target=$MAX_RELATIVE_TARGET \
   --robot.joint_directions=\"$B601_JOINT_DIRECTIONS\" \
   --robot.cameras=\"$CAMERAS\" \
   --teleop.type=rebot_102_leader \

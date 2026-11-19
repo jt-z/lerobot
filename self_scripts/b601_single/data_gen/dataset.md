@@ -1,0 +1,2 @@
+--dataset.repo_id=b601_pi05_coffee_expo_20261118_181510 \
+--dataset.root=/home/jt/b601_data/b601_pi05_coffee_expo_20261118_181510
