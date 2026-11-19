@@ -179,7 +179,13 @@ echo "⚠️  kfinfer会把从臂甩到 episode 首帧姿态，请确认："
 echo "   1) 从臂周边无人/无障碍，手臂可自由运动；"
 echo "   2) 当前姿态与上面打印的首帧 state 接近（差太多会猛地甩过去）；"
 echo "   3) 手放在急停/电源开关附近。"
-read -p "确认无误，按 ENTER 开始kfinfer，Ctrl+C 取消..." dummy
+if [ "${B601_ASSUME_READY:-0}" = "1" ]; then
+  echo "⏭️  B601_ASSUME_READY=1：跳过人工确认（调度器总确认已做过）"
+elif [ ! -t 0 ]; then
+  echo "⚠️  非交互终端：跳过人工确认，请自行确保机械臂周边安全、当前位姿接近首帧"
+else
+  read -p "确认无误，按 ENTER 开始kfinfer，Ctrl+C 取消..." dummy
+fi
 
 # ==================== 开始kfinfer ====================
 echo ""

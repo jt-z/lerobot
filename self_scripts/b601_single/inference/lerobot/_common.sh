@@ -217,7 +217,17 @@ b601_print_trace_summary() {
 }
 
 # 开跑前的人工确认
+# B601_ASSUME_READY=1 供调度器（new_auto_coffee/run_subtask.sh）使用：总确认已在
+# 流程开始时做过一次，子任务不再逐个停下来等 ENTER。
 b601_confirm_zero() {
+  if [ "${B601_ASSUME_READY:-0}" = "1" ]; then
+    echo "⏭️  B601_ASSUME_READY=1：跳过人工确认（假定从臂已在零位）"
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    echo "⚠️  非交互终端：跳过人工确认（等同 B601_ASSUME_READY=1），请自行确保机械臂在零位"
+    return 0
+  fi
   read -p "确认 B601 从臂（can0）处于零位（夹爪闭合）、周边安全，按 ENTER 开始推理，Ctrl+C 取消..." dummy
 }
 
