@@ -110,25 +110,26 @@ case "$POLICY" in
     DETAIL="权重：$ACT_CKPT"
     ;;
   pi05)
-    PI05_MODEL="${CKPT_ARG:-${B601_PI05_MODEL:-/home/jt/pi05_bf16/expo008000}}"
+    PI05_MODEL="${CKPT_ARG:-$COFFEE_PI05_MODEL}"
+    PI05_SHA="${B601_PI05_EXPECT_SHA:-$COFFEE_PI05_SHA}"
     if [ ! -f "$PI05_MODEL/model.safetensors" ]; then
       echo "❌ pi0.5 权重未就绪：$PI05_MODEL"
-      echo "   可用 B601_PI05_MODEL=/path/to/merged_model 指定"
+      echo "   可用 B601_PI05_MODEL=/path/to/merged_model 指定（250 集 12k：expo012000_250ep）"
       exit 4
     fi
-    if ! coffee_task_is_trained_act "$TASK"; then
-      echo "⚠️  pi0.5 当前权重只训练了 A1/B1/B2/C2；按占位逻辑强行跑 $TASK，"
-      echo "    结果不可信，等新权重到位后替换 B601_PI05_MODEL 即可。"
+    PI05_ENV=(
+      "TASK=$TASK"
+      "MODEL_PATH=$PI05_MODEL"
+      "EXPECT_SHA256=$PI05_SHA"
+      "DURATION=$TIMEOUT"
+    )
+    # 默认由脚本自己声明 12k 的 6 任务；换回 4 任务权重时用 B601_PI05_TRAINED_TASKS 覆盖
+    if [ -n "${B601_PI05_TRAINED_TASKS:-}" ]; then
+      PI05_ENV+=("TRAINED_TASKS=$B601_PI05_TRAINED_TASKS")
     fi
-    CMD=(env \
-      "TASK_ID=$TASK" \
-      "MODEL_PATH=$PI05_MODEL" \
-      "DURATION=$TIMEOUT" \
-      "TRAINED_TASKS=${B601_PI05_TRAINED_TASKS:-A1,B1,B2,C1,C2,C3}" \
-      "ALLOW_UNTRAINED=${B601_PI05_ALLOW_UNTRAINED:-1}" \
-      bash "$HERE/run_pi05_coffee_expo.sh")
+    CMD=(env "${PI05_ENV[@]}" bash "$HERE/run_pi05_coffee_250ep.sh")
     SUP_EXTRA=(--clean-exit-result timeout --hard-timeout "$(python -c "print(${TIMEOUT}+300)")")
-    DETAIL="权重：$PI05_MODEL"
+    DETAIL="权重：$PI05_MODEL（sha ${PI05_SHA:0:16}…）"
     ;;
   replay)
     DATASET="${B601_COFFEE_DATASET:-$(coffee_task_default_dataset)}"
@@ -150,7 +151,7 @@ case "$POLICY" in
       "DATASET_ROOT=$DATASET" \
       "EPISODE=$EPISODE" \
       "USE_RERUN=${B601_REPLAY_RERUN:-1}" \
-      bash "$HERE/../../03_replay.sh")
+      bash "$HERE/../../../03_replay.sh")
     SUP_EXTRA=(--enforce-timeout --clean-exit-result ok --grace 10)
     DETAIL="数据集：$DATASET  episode=$EPISODE"
     ;;
