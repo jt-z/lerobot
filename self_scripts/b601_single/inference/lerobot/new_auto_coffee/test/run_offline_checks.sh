@@ -34,7 +34,7 @@ echo "============================================================"
 # ---------------------------------------------------------------- 1. 语法
 echo ""
 echo "--- 1. shell 语法 ---"
-for f in run_subtask.sh run_coffee.sh run_act_coffee.sh coffee_task_table.sh; do
+for f in run_subtask.sh run_coffee.sh run_act_coffee.sh coffee_task_table.sh run_pi05_coffee_250ep.sh; do
   if bash -n "$ROOT/$f" 2>/dev/null; then
     ok "bash -n $f"
   else
