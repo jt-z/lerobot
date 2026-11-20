@@ -11,7 +11,13 @@
 #   --ckpt PATH               覆盖权重目录（act/pi05 生效）
 #   --episode N               覆盖 replay 的 episode（默认按 prompt 自动找）
 #   --status-file PATH        自定义结果 JSON 路径
-#   --yes                     跳过开跑前的人工 ENTER 确认（调度器内部会传）
+#   --yes                     跳过开跑前的人工空格确认（调度器内部会传）
+#   --no-agent                强制起子进程（不连常驻 agent）
+#
+# 常驻 agent：先 `bash run_coffee_agent.sh` 起服务，本脚本检测到 socket 就会把
+# 子任务发给它（省掉 14–16s 启动开销）。socket 不在时自动回退成原来的子进程方式。
+# agent 路径可用 B601_AGENT_SOCKET 指定；replay 也走 agent（agent 内直接放数据集，
+# 不用再起子进程），agent 不可用时才回退子进程。
 #
 # 示例：
 #   bash run_subtask.sh A1
@@ -37,9 +43,12 @@ TASK=""
 POLICY="${B601_POLICY:-act}"
 TIMEOUT="${B601_SUBTASK_TIMEOUT:-40}"
 ASSUME_READY="${B601_ASSUME_READY:-0}"
+NO_AGENT="${B601_NO_AGENT:-0}"
 CKPT_ARG=""
 EPISODE_ARG=""
 STATUS_FILE=""
+DATASET=""
+EPISODE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -49,7 +58,8 @@ while [ $# -gt 0 ]; do
     --episode) EPISODE_ARG="${2:-}"; shift 2 ;;
     --status-file) STATUS_FILE="${2:-}"; shift 2 ;;
     --yes) ASSUME_READY=1; shift ;;
-    -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --no-agent) NO_AGENT=1; shift ;;
+    -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "❌ 未知选项：$1"; exit 4 ;;
     *)
       if [ -z "$TASK" ]; then
@@ -95,9 +105,23 @@ PROMPT="$(coffee_task_prompt "$TASK")"
 CMD=()
 SUP_EXTRA=()
 
+# 三套资源都先解析出来：q/w/e 热切换随时可能用到，不只当前策略那一份。
+ACT_CKPT="$(coffee_task_act_ckpt "$TASK")"
+PI05_MODEL="${B601_PI05_MODEL:-$COFFEE_PI05_MODEL}"
+PI05_SHA="${B601_PI05_EXPECT_SHA:-$COFFEE_PI05_SHA}"
+case "$POLICY" in
+  act)  [ -n "$CKPT_ARG" ] && ACT_CKPT="$CKPT_ARG" ;;
+  pi05) [ -n "$CKPT_ARG" ] && PI05_MODEL="$CKPT_ARG" ;;
+esac
+DATASET="${B601_COFFEE_DATASET:-$(coffee_task_default_dataset)}"
+EPISODE="${EPISODE_ARG:-}"
+if [ -z "$EPISODE" ] && [ -f "$DATASET/meta/info.json" ]; then
+  EPISODE="$(coffee_task_replay_episode "$TASK" "$DATASET" 2>/dev/null || true)"
+fi
+CONTROL_SOCKET="${B601_TASK_CONTROL_SOCKET:-$LOG_DIR/task_control.sock}"
+
 case "$POLICY" in
   act)
-    ACT_CKPT="${CKPT_ARG:-$(coffee_task_act_ckpt "$TASK")}"
     if [ ! -f "$ACT_CKPT/config.json" ] || [ ! -f "$ACT_CKPT/model.safetensors" ]; then
       echo "❌ ACT 权重未就绪：$ACT_CKPT"
       echo "   该任务是六任务重训的占位路径。权重到位后二选一："
@@ -110,8 +134,6 @@ case "$POLICY" in
     DETAIL="权重：$ACT_CKPT"
     ;;
   pi05)
-    PI05_MODEL="${CKPT_ARG:-$COFFEE_PI05_MODEL}"
-    PI05_SHA="${B601_PI05_EXPECT_SHA:-$COFFEE_PI05_SHA}"
     if [ ! -f "$PI05_MODEL/model.safetensors" ]; then
       echo "❌ pi0.5 权重未就绪：$PI05_MODEL"
       echo "   可用 B601_PI05_MODEL=/path/to/merged_model 指定（250 集 12k：expo012000_250ep）"
@@ -132,15 +154,10 @@ case "$POLICY" in
     DETAIL="权重：$PI05_MODEL（sha ${PI05_SHA:0:16}…）"
     ;;
   replay)
-    DATASET="${B601_COFFEE_DATASET:-$(coffee_task_default_dataset)}"
     if [ ! -f "$DATASET/meta/info.json" ]; then
       echo "❌ replay 数据集不存在：$DATASET"
       echo "   可用 B601_COFFEE_DATASET=/path/to/dataset 指定"
       exit 4
-    fi
-    EPISODE="${EPISODE_ARG:-}"
-    if [ -z "$EPISODE" ]; then
-      EPISODE="$(coffee_task_replay_episode "$TASK" "$DATASET")" || true
     fi
     if ! [[ "$EPISODE" =~ ^[0-9]+$ ]]; then
       echo "❌ 无法为 $TASK 找到 replay episode（数据集：$DATASET）"
@@ -157,17 +174,43 @@ case "$POLICY" in
     ;;
 esac
 
+# ---------------- 常驻 agent 路由 ----------------
+# socket 在就发给 coffee_agent.py（机械臂/相机/权重都已在显存里）；否则回退子进程。
+AGENT_SOCKET="${B601_AGENT_SOCKET:-$LOG_DIR/coffee_agent.sock}"
+AGENT_CKPT=""
+case "$POLICY" in
+  act)  AGENT_CKPT="$ACT_CKPT" ;;
+  pi05) AGENT_CKPT="$PI05_MODEL" ;;
+esac
+USE_AGENT=0
+if [ "$NO_AGENT" = "1" ]; then
+  EXEC_MODE="子进程（--no-agent）"
+else
+  # 不只是看 socket 文件在不在：真发一条 health，确认 agent 还活着且健康。
+  # 健康但 busy 也走 agent（由 agent 返回 busy，绝不回退去抢相机）。
+  AGENT_STATUS="$(python "$HERE/agent_health.py" --socket "$AGENT_SOCKET" --timeout 1 2>&1)"
+  AGENT_RC=$?
+  if [ "$AGENT_RC" -eq 0 ]; then
+    USE_AGENT=1
+    EXEC_MODE="常驻 agent（$AGENT_STATUS）"
+  else
+    EXEC_MODE="子进程（agent 不可用：$AGENT_STATUS）"
+  fi
+fi
+
 echo "=========================================="
 echo "子任务 $TASK（policy=$POLICY，上限 ${TIMEOUT}s）"
 echo "=========================================="
 echo "prompt：$PROMPT"
 echo "$DETAIL"
+echo "执行方式：$EXEC_MODE"
 echo "结果文件：$STATUS_FILE"
 echo "运行日志：$RUN_LOG"
+echo "接管按键：q=pi0.5 | w=ACT | e=归零后 replay（语音程序里按）"
 if [ "$ASSUME_READY" = "1" ]; then
   echo "人工确认：跳过（--yes / B601_ASSUME_READY=1）"
 else
-  echo "人工确认：开跑前在本终端按 ENTER"
+  echo "人工确认：开跑前在本终端按空格"
 fi
 echo "=========================================="
 echo ""
@@ -175,7 +218,12 @@ echo ""
 # 后端由监督器以 stdin=DEVNULL 启动（避免抢占按键），所以确认只能在这里做一次。
 if [ "$ASSUME_READY" != "1" ]; then
   if [ -t 0 ]; then
-    read -r -p "确认从臂在零位（夹爪闭合）、周边安全，按 ENTER 开始 $TASK（Ctrl+C 取消）..." _
+    printf '确认从臂在零位（夹爪闭合）、周边安全，按空格开始 %s（Ctrl+C 取消）...' "$TASK"
+    while :; do
+      IFS= read -r -n 1 -s key || exit 130
+      [ "$key" = " " ] && break
+    done
+    echo
   else
     echo "⚠️  非交互终端：跳过确认，请自行确保机械臂在零位"
   fi
@@ -183,11 +231,34 @@ if [ "$ASSUME_READY" != "1" ]; then
   export B601_ASSUME_READY=1
 fi
 
-exec python "$HERE/subtask_supervisor.py" \
-  --task "$TASK" \
-  --policy "$POLICY" \
-  --timeout "$TIMEOUT" \
-  --status-file "$STATUS_FILE" \
-  --log-file "$RUN_LOG" \
-  "${SUP_EXTRA[@]}" \
-  -- "${CMD[@]}"
+if [ "$USE_AGENT" = "1" ]; then
+  # agent 模式：后端已在常驻进程里，监督器只发 run/stop；硬超时留作最后兜底
+  exec python "$HERE/subtask_supervisor.py" \
+    --task "$TASK" \
+    --policy "$POLICY" \
+    --timeout "$TIMEOUT" \
+    --status-file "$STATUS_FILE" \
+    --log-file "$RUN_LOG" \
+    --agent-socket "$AGENT_SOCKET" \
+    --agent-prompt "$PROMPT" \
+    --agent-ckpt "$AGENT_CKPT" \
+    --agent-dataset "$DATASET" \
+    --agent-episode "${EPISODE:-0}" \
+    --control-socket "$CONTROL_SOCKET" \
+    --agent-act-ckpt "$ACT_CKPT" \
+    --agent-pi05-ckpt "$PI05_MODEL" \
+    --agent-replay-dataset "$DATASET" \
+    --agent-replay-episode "${EPISODE:-0}" \
+    --grace 10 \
+    --home-wait 30 \
+    --hard-timeout "$(python -c "print(${TIMEOUT}+120)")"
+else
+  exec python "$HERE/subtask_supervisor.py" \
+    --task "$TASK" \
+    --policy "$POLICY" \
+    --timeout "$TIMEOUT" \
+    --status-file "$STATUS_FILE" \
+    --log-file "$RUN_LOG" \
+    "${SUP_EXTRA[@]}" \
+    -- "${CMD[@]}"
+fi

@@ -1,0 +1,58 @@
+# 咖啡子任务常驻推理 agent —— systemd **用户级**服务单元
+#
+# 安装（不需要 root）：
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/coffee-agent.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now coffee-agent
+#
+# 常用：
+#   systemctl --user status coffee-agent
+#   journalctl --user -u coffee-agent -f
+#   systemctl --user restart coffee-agent
+#   systemctl --user stop coffee-agent
+#
+# 开机即起（未登录也运行）：loginctl enable-linger "$USER"
+#
+# 需要 Rerun 可视化时：
+#   1) 把下面的 DISPLAY_DATA 改成 1，并取消 DISPLAY 注释；
+#   2) 在图形会话里执行一次 systemctl --user import-environment DISPLAY
+#      （或改用系统级单元并设置 Environment=DISPLAY=:0）。
+#
+# 注意：机械臂 CAN（can0）要处于 UP；相机设备权限与手动运行一致（同一用户）。
+
+[Unit]
+Description=Coffee subtask persistent inference agent (B601)
+Documentation=file:%h/dev/lerobot/self_scripts/b601_single/inference/lerobot/new_auto_coffee/README.md
+# can0 由系统网络配置拉起，这里不依赖具体 unit，只在失败后按 Restart 重试
+After=network-online.target
+Wants=network-online.target
+# 硬件异常时避免无限重启
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/lerobot/self_scripts/b601_single/inference/lerobot/new_auto_coffee
+ExecStart=/bin/bash %h/dev/lerobot/self_scripts/b601_single/inference/lerobot/new_auto_coffee/run_coffee_agent.sh
+# 崩溃/硬件初始化失败自动重启；正常 shutdown（exit 0）不重启
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+# agent 退出时会等当前子任务归零（最多 30s），这里给足时间
+TimeoutStopSec=45
+
+# 默认不开 Rerun：用户级服务没有 DISPLAY 时也不会出错
+Environment=DISPLAY_DATA=0
+Environment=LITE_LOAD=1
+# Environment=DISPLAY_DATA=1
+# Environment=DISPLAY=:0
+
+# 显存常驻：按需预加载（all = 6 份 ACT + pi0.5，约 8.2GB）
+# Environment=PRELOAD=all
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

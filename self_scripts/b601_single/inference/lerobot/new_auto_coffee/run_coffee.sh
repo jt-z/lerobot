@@ -106,7 +106,9 @@ fi
 
 if [ "$YES" = "0" ]; then
   if [ -t 0 ]; then
-    read -r -p "确认从臂在零位、杯子与咖啡机就绪，按 ENTER 开始（Ctrl+C 取消）..." _
+    printf '确认从臂在零位、杯子与咖啡机就绪，按空格开始（Ctrl+C 取消）...'
+    while :; do IFS= read -r -n 1 -s _key || exit 130; [ "$_key" = " " ] && break; done
+    echo
     YES=1
   else
     echo "⚠️  非交互终端：跳过总确认（等同 --yes），请确保已就绪"
@@ -129,7 +131,9 @@ for step in "${PLAN[@]}"; do
     case "$WAIT_MODE" in
       enter)
         if [ -t 0 ]; then
-          read -r -p "萃取完成后按 ENTER 进入放杯阶段（Ctrl+C 中止）..." _
+          printf '萃取完成后按空格进入放杯阶段（Ctrl+C 中止）...'
+          while :; do IFS= read -r -n 1 -s _key || exit 130; [ "$_key" = " " ] && break; done
+          echo
         else
           echo "⚠️  非交互终端：跳过 B→C 等待"
         fi

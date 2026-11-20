@@ -34,13 +34,38 @@ echo "============================================================"
 # ---------------------------------------------------------------- 1. 语法
 echo ""
 echo "--- 1. shell 语法 ---"
-for f in run_subtask.sh run_coffee.sh run_act_coffee.sh coffee_task_table.sh run_pi05_coffee_250ep.sh; do
+for f in run_subtask.sh run_coffee.sh run_act_coffee.sh coffee_task_table.sh run_pi05_coffee_250ep.sh run_coffee_agent.sh; do
   if bash -n "$ROOT/$f" 2>/dev/null; then
     ok "bash -n $f"
   else
     bad "bash -n $f"
   fi
 done
+
+for f in coffee_agent.py subtask_supervisor.py agent_health.py; do
+  if "$PY" -m py_compile "$ROOT/$f" 2>/dev/null; then
+    ok "py_compile $f"
+  else
+    bad "py_compile $f"
+  fi
+done
+
+UNIT="$ROOT/systemd/coffee-agent.service"
+if [ -f "$UNIT" ] && grep -q '^ExecStart=/bin/bash .*run_coffee_agent.sh' "$UNIT" \
+   && grep -q '^Restart=on-failure' "$UNIT" && grep -q '^WantedBy=default.target' "$UNIT"; then
+  ok "systemd 单元结构（ExecStart/Restart/WantedBy）"
+else
+  bad "systemd 单元结构异常：$UNIT"
+fi
+
+# ---------------------------------------------------------------- 1b. 常驻 agent
+echo ""
+echo "--- 1b. 常驻 agent（--self-test，不碰硬件）---"
+if B601_PY="$PY" "$PY" "$HERE/check_agent_offline.py"; then
+  ok "check_agent_offline.py（协议 + supervisor 映射）"
+else
+  bad "check_agent_offline.py（协议 + supervisor 映射）"
+fi
 
 # ---------------------------------------------------------------- 2. 任务表
 echo ""
@@ -58,13 +83,13 @@ else
   bad "任务 ID 异常: ${COFFEE_TASK_IDS:-<空>}"
 fi
 
-EXPECTED="A1:159 B1:47 B2:77 C1:136 C2:98 C3:245"
+EXPECTED="A1:159 B1:46 B2:77 C1:136 C2:98 C3:245"
 for pair in $EXPECTED; do
   task="${pair%%:*}"
   want="${pair##*:}"
   got="$(coffee_task_replay_episode "$task" 2>/dev/null || true)"
   if [ "$got" = "$want" ]; then
-    ok "replay 中间 episode $task=$got"
+    ok "replay 默认 episode $task=$got"
   else
     warn "replay episode $task 期望 $want，实际 ${got:-<空>}（数据集可能已更换）"
   fi

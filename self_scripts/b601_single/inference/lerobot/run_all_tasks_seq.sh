@@ -1,5 +1,5 @@
 #!/bin/bash
-# 依次跑 6 个子任务的 pi05 真机推理（同一份 250 集 12k 权重，只换 prompt）
+# 依次跑 6 个子任务的 pi05 真机推理（同一份 250 集 run 的权重，默认 12k；只换 prompt）
 #
 # 设计口径：**每段之间必须人工放行**（回车才进下一段），因为每段之间要人把杯/水/按键现场复原。
 #   - 任何一段失败（非 0 退出）立即中止队列，避免在错状态下继续跑
@@ -12,11 +12,12 @@
 #   DUR_A1=240 bash run_all_tasks_seq.sh             # 改某段时长（默认见下表）
 #
 # 单段手跑（等价）：
-#   TASK=A1 DURATION=180 /home/jt/dev/lerobot/self_scripts/b601_single/inference/lerobot/new_auto_coffee/run_pi05_coffee_250ep.sh
+#   TASK=A1 DURATION=180 ~/dev/lerobot/self_scripts/b601_single/inference/lerobot/new_auto_coffee/run_pi05_coffee_250ep.sh
 
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-RUN=$HERE/new_auto_coffee/run_pi05_coffee_250ep.sh
+RUN="${RUN:-$HERE/new_auto_coffee/run_pi05_coffee_250ep.sh}"
+[ -f "$RUN" ] || RUN="$HERE/run_pi05_coffee_250ep.sh"   # 兼容脚本被挪到 new_auto_coffee/ 之前的布局
 ORDER=${ORDER:-A1 C2 C1 B2 B1 C3}
 
 dur_of() {
@@ -34,6 +35,7 @@ dur_of() {
 echo "=================================================="
 echo " 即将依次执行：$ORDER"
 echo " 每段之间会停下来等你按回车（现场要复原杯子/水量/按键）"
+echo " 权重：$( grep -m1 'MODEL_PATH="${MODEL_PATH:-' "$RUN" | sed 's/.*:-//; s/}.*//' )（默认 12k；要 9k 就带 MODEL_PATH+EXPECT_SHA256）"
 echo " Ctrl+C 可随时中止整个队列"
 echo "=================================================="
 

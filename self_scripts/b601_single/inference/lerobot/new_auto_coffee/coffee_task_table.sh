@@ -68,7 +68,7 @@ coffee_task_default_dataset() {
 }
 
 # 按 prompt 在数据集里找该任务所有 episode，取中间编号作为默认 replay 目标
-# （中间批次通常比最早/最晚的稳定；可用 B601_REPLAY_EPISODE_<ID> 或 --episode 覆盖）。
+# （中间批次通常比最早/最晚的稳定；B1 取中间集的前一集；可用 B601_REPLAY_EPISODE_<ID> 或 --episode 覆盖）。
 coffee_task_replay_episode() {
   local task="$1" dataset="${2:-$(coffee_task_default_dataset)}"
   local override_var="B601_REPLAY_EPISODE_${task}"
@@ -77,13 +77,15 @@ coffee_task_replay_episode() {
     echo "$override"
     return 0
   fi
-  python - "$dataset" "$(coffee_task_prompt "$task")" <<'PY'
+  local back=0
+  [ "$task" = "B1" ] && back=1
+  python - "$dataset" "$(coffee_task_prompt "$task")" "$back" <<'PY'
 import glob
 import sys
 
 import pandas as pd
 
-root, prompt = sys.argv[1], sys.argv[2]
+root, prompt, back = sys.argv[1], sys.argv[2], int(sys.argv[3])
 matches = []
 for path in sorted(glob.glob(root + "/meta/episodes/**/*.parquet", recursive=True)):
     df = pd.read_parquet(path, columns=["episode_index", "tasks"])
@@ -93,6 +95,7 @@ for path in sorted(glob.glob(root + "/meta/episodes/**/*.parquet", recursive=Tru
 if not matches:
     sys.exit(1)
 matches.sort()
-print(matches[len(matches) // 2])
+idx = max(len(matches) // 2 - back, 0)
+print(matches[idx])
 PY
 }

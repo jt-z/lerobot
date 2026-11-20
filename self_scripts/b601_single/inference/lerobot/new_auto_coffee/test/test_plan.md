@@ -53,6 +53,60 @@ bash run_offline_checks.sh
 
 ---
 
+## T0b 常驻 agent 协议 🟢（离线）
+
+**目的**：不碰机械臂/相机/权重，只验证 socket 协议与 supervisor 的结果映射。
+
+```bash
+cd "$NEW_AUTO"
+PY=~/dev/miniforge3/envs/lerobot_b601/bin/python
+SOCK=/tmp/coffee_agent_test.sock
+$PY coffee_agent.py --socket "$SOCK" --self-test --display-data 0 --log-file /tmp/agent_test.log &
+AGENT=$!
+sleep 1
+
+python - "$SOCK" <<'PY'
+import json, socket, sys, time
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.connect(sys.argv[1])
+def send(o): s.sendall((json.dumps(o) + "\n").encode())
+def recv():
+    buf = b""
+    while b"\n" not in buf: buf += s.recv(65536)
+    return json.loads(buf.split(b"\n")[0])
+send({"op": "health"}); print(recv())
+send({"op": "run", "task": "A1", "policy": "act", "timeout": 2, "prompt": "p", "ckpt": "/tmp/fake"})
+print(recv()); time.sleep(0.1)
+send({"op": "stop", "reason": "ok"}); print(recv()); print(recv())
+send({"op": "run", "task": "B1", "policy": "act", "timeout": 0.3, "prompt": "p", "ckpt": "/tmp/fake"})
+print(recv()); print(recv())          # accepted → done(timeout)
+send({"op": "shutdown"}); print(recv())
+PY
+wait $AGENT; echo "agent rc=$?"
+
+# 监督器侧（超时 / 连不上 / 键 0 / 键 1）由 run_offline_checks.sh 的 agent 用例自动跑，
+# 不需要人手按键；单独跑：
+bash test/run_offline_checks.sh
+```
+
+**预期**：
+
+| 操作 | 期望 |
+|---|---|
+| `health` | `ok=true, busy=false, self_test=true` |
+| `run` + `stop(ok)` | `accepted` → `stop_ack(accepted=true)` → `done(result=ok, exit_code=0, trigger=key_0)` |
+| `run` 不 stop（timeout=0.3） | `done(result=timeout, exit_code=3)` |
+| `run` policy=replay 自然结束 | `done(result=ok, exit_code=0)` |
+| 并发第二个 `run` | `error(busy)` |
+| `stop(reason=nope)` | `error(bad_request)` |
+| `shutdown` | `bye`，进程 rc=0，socket 文件被删除 |
+| `agent_health.py`（健康 / 无 socket） | `rc=0` 且输出 `ok=true` / `rc=1` |
+| supervisor 连不上 socket | `rc=4`，提示先启动 agent |
+| supervisor 超时 / SIGTERM | `rc=3` / `rc=130`，状态文件 `mode=agent` |
+
+**失败处理**：任何一条不符先查 `coffee_agent.py --self-test` 的日志，再查 supervisor 是否把 `trigger` 映射错。
+
+---
+
 ## T1 CLI 契约 🟢
 
 **目的**：确认错误输入不会启动机器人。
@@ -165,7 +219,7 @@ bash run_coffee.sh americano 2 --policy replay
 
 1. A1（episode 159，约 32s）→ `RC=0`
 2. B2（episode 77，约 27s）→ `RC=0`
-3. 停在人工确认，按 ENTER 后 C2（episode 98，约 31s）→ `RC=0`
+3. 停在人工确认，按空格后 C2（episode 98，约 31s）→ `RC=0`
 4. 任一步非 0 立即停止后续步骤
 
 **判定**：三步都 0，且咖啡机在 B2 时真的被按下 Start。
@@ -225,7 +279,7 @@ $PY demo/coffee_voice_trigger.py \
 
 **人工动作**：
 
-1. 阶段一窗口弹出后按一次 ENTER
+1. 阶段一窗口弹出后按一次空格
 2. 走到 2 区，说“你好宽宽”
 
 **预期**：
@@ -361,9 +415,10 @@ cd "$NEW_AUTO"
 bash run_subtask.sh C2 --policy pi05 --timeout 60
 ```
 
-**预期**：能加载权重并执行；退出码 0 或 3（超时）。
+**预期**：能加载 12k 权重（`expo012000_250ep`）并执行；退出码 0 或 3（超时）。
 
-**注意**：每个子任务都会重新加载 8GB 权重，整杯会很慢；C1/C3 的 pi0.5 结果不可信。
+**注意**：每个子任务都会重新加载 8.7GB 权重，整杯会很慢；现在 6 个任务都在 12k 的训练集内，
+但 C3 只有 10 集，效果仍是最弱的一项。
 
 ---
 
@@ -378,7 +433,7 @@ ls -l /home/jt/dev/lerobot/self_scripts/_logs/subtask_last.json
 
 - `pgrep` 无输出
 - 机械臂在零位
-- 没有遗留的子任务终端窗口还在等待 ENTER
+- 没有遗留的子任务终端窗口还在等待空格
 
 ---
 
